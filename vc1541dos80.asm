@@ -186,26 +186,13 @@ lab_a036:
     lda #0x08               ;a042  a9 08
     sta mem_03fe            ;a044  8d fe 03
     jsr sub_a390            ;a047  20 90 a3
-    lda #0x51               ;a04a  a9 51
-    ldy #0xa0               ;a04c  a0 a0
+    lda #<banner            ;a04a  a9 51
+    ldy #>banner            ;a04c  a0 a0
     jmp lab_bb1d            ;a04e  4c 1d bb
 
-    .byte 0x56              ;a051  56          UNKNOWN 0x56 'V'
-    .byte 0x43              ;a052  43          UNKNOWN 0x43 'C'
-    .byte 0x2d              ;a053  2d          UNKNOWN 0x2d '-'
-    .byte 0x31              ;a054  31          UNKNOWN 0x31 '1'
-    .byte 0x35              ;a055  35          UNKNOWN 0x35 '5'
-    .byte 0x34              ;a056  34          UNKNOWN 0x34 '4'
-    .byte 0x31              ;a057  31          UNKNOWN 0x31 '1'
-    .byte 0x2d              ;a058  2d          UNKNOWN 0x2d '-'
-    .byte 0x44              ;a059  44          UNKNOWN 0x44 'D'
-    .byte 0x4f              ;a05a  4f          UNKNOWN 0x4f 'O'
-    .byte 0x53              ;a05b  53          UNKNOWN 0x53 'S'
-    .byte 0x2f              ;a05c  2f          UNKNOWN 0x2f '/'
-    .byte 0x38              ;a05d  38          UNKNOWN 0x38 '8'
-    .byte 0x30              ;a05e  30          UNKNOWN 0x30 '0'
-    .byte 0x0d              ;a05f  0d          UNKNOWN 0x0d
-    .byte 0x00              ;a060  00          UNKNOWN 0x00
+banner:
+    .ascii "VC-1541-DOS/80"
+    .byte 0x0d, 0x00
 
 lab_a061:
     inc mem_0077            ;a061  e6 77
@@ -611,21 +598,8 @@ lab_a2ec:
     sta mem_0010            ;a2f4  85 10
     rts                     ;a2f6  60
 
-    .byte 0x28              ;a2f7  28          UNKNOWN 0x28 '('
-    .byte 0x43              ;a2f8  43          UNKNOWN 0x43 'C'
-    .byte 0x29              ;a2f9  29          UNKNOWN 0x29 ')'
-    .byte 0x20              ;a2fa  20          UNKNOWN 0x20 ' '
-    .byte 0x47              ;a2fb  47          UNKNOWN 0x47 'G'
-    .byte 0x20              ;a2fc  20          UNKNOWN 0x20 ' '
-    .byte 0x4d              ;a2fd  4d          UNKNOWN 0x4d 'M'
-    .byte 0x55              ;a2fe  55          UNKNOWN 0x55 'U'
-    .byte 0x54              ;a2ff  54          UNKNOWN 0x54 'T'
-    .byte 0x5a              ;a300  5a          UNKNOWN 0x5a 'Z'
-    .byte 0x20              ;a301  20          UNKNOWN 0x20 ' '
-    .byte 0x28              ;a302  28          UNKNOWN 0x28 '('
-    .byte 0x38              ;a303  38          UNKNOWN 0x38 '8'
-    .byte 0x34              ;a304  34          UNKNOWN 0x34 '4'
-    .byte 0x29              ;a305  29          UNKNOWN 0x29 ')'
+copyright:                  ;a2f7
+    .ascii "(C) G MUTZ (84)"
 
 sub_a306:
     pha                     ;a306  48
