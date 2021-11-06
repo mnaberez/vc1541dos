@@ -122,66 +122,33 @@
     sub_f92b = 0xf92b
     mem_ffa9 = 0xffa9
 
-lab_a000:
-    jmp lab_a036            ;a000  4c 36 a0
+    ;Entry points at the beginning of the ROM
 
-lab_a003:
-    jmp lab_a09c            ;a003  4c 9c a0
+    jmp lab_a036_install_wedge  ;a000  4c 36 a0   Install the wedge
+    jmp lab_a09c                ;a003  4c 9c a0
+    jmp lab_a377                ;a006  4c 77 a3
+    jmp lab_a382                ;a009  4c 82 a3
+    jmp lab_a128                ;a00c  4c 28 a1
+    jmp lab_a136                ;a00f  4c 36 a1
+    jmp sub_a141                ;a012  4c 41 a1
+    jmp sub_a306                ;a015  4c 06 a3
+    jmp sub_a314                ;a018  4c 14 a3
+    jmp sub_a32a                ;a01b  4c 2a a3
+    jmp sub_a31f                ;a01e  4c 1f a3
+    jmp sub_a335                ;a021  4c 35 a3
+    jmp lab_a345                ;a024  4c 45 a3
+    jmp lab_a353                ;a027  4c 53 a3
+    jmp sub_a340                ;a02a  4c 40 a3
+    jmp lab_a361                ;a02d  4c 61 a3
+    jmp lab_a36c                ;a030  4c 6c a3
+    jmp lab_a119                ;a033  4c 19 a1
 
-lab_a006:
-    jmp lab_a377            ;a006  4c 77 a3
-
-lab_a009:
-    jmp lab_a382            ;a009  4c 82 a3
-
-lab_a00c:
-    jmp lab_a128            ;a00c  4c 28 a1
-
-lab_a00f:
-    jmp lab_a136            ;a00f  4c 36 a1
-
-lab_a012:
-    jmp sub_a141            ;a012  4c 41 a1
-
-lab_a015:
-    jmp sub_a306            ;a015  4c 06 a3
-
-lab_a018:
-    jmp sub_a314            ;a018  4c 14 a3
-
-lab_a01b:
-    jmp sub_a32a            ;a01b  4c 2a a3
-
-lab_a01e:
-    jmp sub_a31f            ;a01e  4c 1f a3
-
-lab_a021:
-    jmp sub_a335            ;a021  4c 35 a3
-
-lab_a024:
-    jmp lab_a345            ;a024  4c 45 a3
-
-lab_a027:
-    jmp lab_a353            ;a027  4c 53 a3
-
-lab_a02a:
-    jmp sub_a340            ;a02a  4c 40 a3
-
-lab_a02d:
-    jmp lab_a361            ;a02d  4c 61 a3
-
-lab_a030:
-    jmp lab_a36c            ;a030  4c 6c a3
-
-lab_a033:
-    jmp lab_a119            ;a033  4c 19 a1
-
-lab_a036:
+lab_a036_install_wedge:
     lda #0x4c               ;a036  a9 4c
     sta mem_0070            ;a038  85 70
-    lda #0x61               ;a03a  a9 61
+    lda #<lab_a061_wedge    ;a03a  a9 61
     sta mem_0071            ;a03c  85 71
-    lda #0xa0               ;a03e  a9 a0
+    lda #>lab_a061_wedge    ;a03e  a9 a0
     sta mem_0072            ;a040  85 72
     lda #0x08               ;a042  a9 08
     sta mem_03fe            ;a044  8d fe 03
@@ -194,7 +161,7 @@ banner:
     .ascii "VC-1541-DOS/80"
     .byte 0x0d, 0x00
 
-lab_a061:
+lab_a061_wedge:
     inc mem_0077            ;a061  e6 77
     bne lab_a067            ;a063  d0 02
     inc mem_0078            ;a065  e6 78
@@ -202,8 +169,8 @@ lab_a061:
 lab_a067:
     jsr 0x0076              ;a067  20 76 00
     php                     ;a06a  08
-    cmp #0x21               ;a06b  c9 21
-    bne lab_a090            ;a06d  d0 21
+    cmp #'!                 ;a06b  c9 21
+    bne lab_a090_wedge_done ;a06d  d0 21
     stx mem_00ab            ;a06f  86 ab
     tsx                     ;a071  ba
     lda mem_0103,x          ;a072  bd 03 01
@@ -225,7 +192,7 @@ lab_a08c:
     ldx mem_00ab            ;a08c  a6 ab
     lda #0x21               ;a08e  a9 21
 
-lab_a090:
+lab_a090_wedge_done:
     plp                     ;a090  28
     rts                     ;a091  60
 
@@ -240,52 +207,53 @@ lab_a09c:
     pha                     ;a09f  48
     jsr mem_0070            ;a0a0  20 70 00
     pla                     ;a0a3  68
-    cmp #0x93               ;a0a4  c9 93
-    beq lab_a10f            ;a0a6  f0 67
-    cmp #0x94               ;a0a8  c9 94
+    cmp #0x93               ;a0a4  c9 93        ;0x93 = LOAD token
+    beq lab_a10f_cmd_load   ;a0a6  f0 67
+    cmp #0x94               ;a0a8  c9 94        ;0x94 = SAVE token
     bne lab_a0af            ;a0aa  d0 03
-    jmp lab_a5e5            ;a0ac  4c e5 a5
+    jmp lab_a5e5_cmd_save   ;a0ac  4c e5 a5
 
 lab_a0af:
-    cmp #0x95               ;a0af  c9 95
-    beq 0xa112              ;a0b1  f0 5f
-    cmp #0xd7               ;a0b3  c9 d7
+    cmp #0x95               ;a0af  c9 95        ;0x95 = VERIFY token
+    beq lab_a112_cmd_verify ;a0b1  f0 5f
+    cmp #0xd7               ;a0b3  c9 d7        ;0xD7 = CATALOG
     bne lab_a0ba            ;a0b5  d0 03
-    jmp lab_a7c7            ;a0b7  4c c7 a7
+    jmp lab_a7c7_cmd_catalog ;a0b7  4c c7 a7
 
 lab_a0ba:
-    cmp #0x9f               ;a0ba  c9 9f
+    cmp #0x9f               ;a0ba  c9 9f        ;0x9F = OPEN
     bne lab_a0c1            ;a0bc  d0 03
-    jmp lab_a11c            ;a0be  4c 1c a1
+    jmp lab_a11c_cmd_open   ;a0be  4c 1c a1
 
 lab_a0c1:
-    cmp #0x98               ;a0c1  c9 98
+    cmp #0x98               ;a0c1  c9 98        ;0x98 = PRINT#
     bne lab_a0c8            ;a0c3  d0 03
-    jmp lab_a175            ;a0c5  4c 75 a1
+    jmp lab_a175_cmd_print  ;a0c5  4c 75 a1
 
 lab_a0c8:
-    cmp #0xa1               ;a0c8  c9 a1
+    cmp #0xa1               ;a0c8  c9 a1        ;0xA1 = GET
     bne lab_a0cf            ;a0ca  d0 03
-    jmp lab_a1e0            ;a0cc  4c e0 a1
+    jmp lab_a1e0_cmd_get    ;a0cc  4c e0 a1
 
 lab_a0cf:
-    cmp #0xa0               ;a0cf  c9 a0
+    cmp #0xa0               ;a0cf  c9 a0        ;0xA0 = CLOSE
     bne lab_a0d6            ;a0d1  d0 03
-    jmp lab_a133            ;a0d3  4c 33 a1
+    jmp lab_a133_cmd_close  ;a0d3  4c 33 a1
 
 lab_a0d6:
-    cmp #0x84               ;a0d6  c9 84
+    cmp #0x84               ;a0d6  c9 84        ;0x84 = INPUT#
     bne lab_a0dd            ;a0d8  d0 03
-    jmp lab_a226            ;a0da  4c 26 a2
+    jmp lab_a226_cmd_input  ;a0da  4c 26 a2
 
 lab_a0dd:
-    cmp #0x9d               ;a0dd  c9 9d
+    cmp #0x9d               ;a0dd  c9 9d        ;0x9D = CMD
     bne lab_a0e4            ;a0df  d0 03
-    jmp lab_a14c            ;a0e1  4c 4c a1
+    jmp lab_a14c_cmd_cmd    ;a0e1  4c 4c a1
 
 lab_a0e4:
-    cmp #0x51               ;a0e4  c9 51
+    cmp #'Q                 ;a0e4  c9 51
     bne lab_a0f5            ;a0e6  d0 0d
+    ;Wedge command is Quit
     lda #0xe6               ;a0e8  a9 e6
     sta mem_0070            ;a0ea  85 70
     lda #0x77               ;a0ec  a9 77
@@ -295,9 +263,9 @@ lab_a0e4:
     rts                     ;a0f4  60
 
 lab_a0f5:
-    cmp #0x40               ;a0f5  c9 40
+    cmp #'@                 ;a0f5  c9 40
     bne lab_a0fc            ;a0f7  d0 03
-    jmp lab_a586            ;a0f9  4c 86 a5
+    jmp lab_a586_cmd_status ;a0f9  4c 86 a5
 
 lab_a0fc:
     dec mem_0077            ;a0fc  c6 77
@@ -311,16 +279,19 @@ lab_a106:
     stx mem_03ff            ;a109  8e ff 03
     jmp lab_a09c            ;a10c  4c 9c a0
 
-lab_a10f:
+lab_a112_cmd_verify = lab_a10f_cmd_load + 3
+
+lab_a10f_cmd_load:
     lda #0x00               ;a10f  a9 00
-    bit mem_ffa9            ;a111  2c a9 ff
+    bit mem_ffa9            ;a111  2c a9 ff   ;VERIFY jumps here mid-instruction to 0xA112
     sta mem_009d            ;a114  85 9d
-    jmp lab_a6b7            ;a116  4c b7 a6
+    ;A=0 for LOAD, A=0xFF for VERIFY
+    jmp lab_a6b7_load_or_verify ;a116  4c b7 a6
 
 lab_a119:
     jmp sub_a340            ;a119  4c 40 a3
 
-lab_a11c:
+lab_a11c_cmd_open:
     jsr sub_a390            ;a11c  20 90 a3
     jsr sub_a8a8            ;a11f  20 a8 a8
     jsr sub_bef5            ;a122  20 f5 be
@@ -334,7 +305,7 @@ lab_a128:
 lab_a130:
     jmp lab_f4a5            ;a130  4c a5 f4
 
-lab_a133:
+lab_a133_cmd_close:
     jsr sub_a8a8            ;a133  20 a8 a8
 
 lab_a136:
@@ -353,7 +324,7 @@ sub_a141:
 lab_a149:
     jmp lab_f1c0            ;a149  4c c0 f1
 
-lab_a14c:
+lab_a14c_cmd_cmd:
     jsr sub_a8a8            ;a14c  20 a8 a8
     lda #0x5f               ;a14f  a9 5f
     sta mem_00eb            ;a151  85 eb
@@ -376,7 +347,7 @@ lab_a16f:
     jsr sub_a306            ;a16f  20 06 a3
     jmp lab_e787            ;a172  4c 87 e7
 
-lab_a175:
+lab_a175_cmd_print:
     lda mem_00eb            ;a175  a5 eb
     cmp #0x5f               ;a177  c9 5f
     bne lab_a18c            ;a179  d0 11
@@ -420,7 +391,7 @@ lab_a1b3:
 
 lab_a1bf:
     jsr sub_a85a            ;a1bf  20 5a a8
-    cmp #0x3b               ;a1c2  c9 3b
+    cmp #';                 ;a1c2  c9 3b
     bne lab_a1ce            ;a1c4  d0 08
     jsr mem_0070            ;a1c6  20 70 00
     beq lab_a1dd            ;a1c9  f0 12
@@ -437,7 +408,7 @@ lab_a1ce:
 lab_a1dd:
     jmp sub_a32a            ;a1dd  4c 2a a3
 
-lab_a1e0:
+lab_a1e0_cmd_get:
     jsr sub_a8a8            ;a1e0  20 a8 a8
     jsr sub_bef5            ;a1e3  20 f5 be
     lda mem_03ff            ;a1e6  ad ff 03
@@ -475,7 +446,7 @@ lab_a21c:
     ldy #0x01               ;a223  a0 01
     rts                     ;a225  60
 
-lab_a226:
+lab_a226_cmd_input:
     jsr sub_a8ad            ;a226  20 ad a8
     jsr sub_bef5            ;a229  20 f5 be
     jsr sub_a31f            ;a22c  20 1f a3
@@ -1041,7 +1012,7 @@ sub_a580:
 lab_a585:
     rts                     ;a585  60
 
-lab_a586:
+lab_a586_cmd_status:
     jsr sub_a390            ;a586  20 90 a3
     jsr 0x0076              ;a589  20 76 00
     bne lab_a591            ;a58c  d0 03
@@ -1069,12 +1040,12 @@ lab_a591:
     sta [mem_001f],y        ;a5b5  91 1f
     dey                     ;a5b7  88
 
-lab_a5b8:
-    lda mem_a834,y          ;a5b8  b9 34 a8
+lab_a5b8_loop:
+    lda mem_a834_m_w,y      ;a5b8  b9 34 a8
     sta [mem_001f],y        ;a5bb  91 1f
     dey                     ;a5bd  88
-    bpl lab_a5b8            ;a5be  10 f8
-    bmi lab_a5ca            ;a5c0  30 08
+    bpl lab_a5b8_loop       ;a5be  10 f8
+    bmi lab_a5ca            ;a5c0  30 08        Branch always
 
 lab_a5c2:
     jsr sub_bd98            ;a5c2  20 98 bd
@@ -1097,7 +1068,7 @@ lab_a5d8:
     bne lab_a5d8            ;a5e0  d0 f6
     jmp 0xa4ee              ;a5e2  4c ee a4
 
-lab_a5e5:
+lab_a5e5_cmd_save:
     jsr sub_a5eb            ;a5e5  20 eb a5
     jmp sub_a83c            ;a5e8  4c 3c a8
 
@@ -1228,10 +1199,11 @@ lab_a6aa:
     bne lab_a6aa            ;a6b2  d0 f6
     jmp 0xa4ee              ;a6b4  4c ee a4
 
-lab_a6b7:
+;Called with A=0 for LOAD, A=0xFF for VERIFY
+lab_a6b7_load_or_verify:
     jsr sub_a390            ;a6b7  20 90 a3
     jsr sub_a85a            ;a6ba  20 5a a8
-    cmp #0x3b               ;a6bd  c9 3b
+    cmp #';                 ;a6bd  c9 3b
     bne lab_a6c6            ;a6bf  d0 05
     sta mem_00ba            ;a6c1  85 ba
     jsr mem_0070            ;a6c3  20 70 00
@@ -1380,7 +1352,7 @@ sub_a7b6:
     sta mem_00db            ;a7c4  85 db
     rts                     ;a7c6  60
 
-lab_a7c7:
+lab_a7c7_cmd_catalog:
     jsr sub_a390            ;a7c7  20 90 a3
     jsr 0x0076              ;a7ca  20 76 00
     beq lab_a7d5            ;a7cd  f0 06
@@ -1441,15 +1413,12 @@ lab_a825:
 lab_a831:
     jmp sub_a65e            ;a831  4c 5e a6
 
-mem_a834:
-    .byte 0x4d              ;a834  4d          DATA 0x4d 'M'
-    .byte 0x2d              ;a835  2d          DATA 0x2d '-'
-    .byte 0x57              ;a836  57          DATA 0x57 'W'
-    .byte 0x77              ;a837  77          DATA 0x77 'w'
-    .byte 0x00              ;a838  00          DATA 0x00
-    .byte 0x02              ;a839  02          DATA 0x02
-    .byte 0x24              ;a83a  24          DATA 0x24 '$'
-    .byte 0x00              ;a83b  00          DATA 0x00
+mem_a834_m_w:
+    .ascii "M-W"
+    .word 0x0077
+    .byte 2
+    .ascii "$"
+    .byte 0
 
 sub_a83c:
     jsr sub_a65e            ;a83c  20 5e a6
