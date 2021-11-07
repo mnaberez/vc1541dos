@@ -44,8 +44,7 @@
     mem_0200 = 0x200
     mem_03fe = 0x3fe        ;Current device number on IEC bus (default 8)
     mem_03ff = 0x3ff        ;Copy of current IEC device number
-    mem_87d0 = 0x87d0
-
+    mem_87d0_torl = 0x87d0  ;Stores TALK or LISTEN state: 0x40=TALK, 0x20=LISTEN
     rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
     error = 0xb3cf          ;BASIC Print error message offset by X in msgs table and return to prompt
     lab_b4ad = 0xb4ad
@@ -376,7 +375,6 @@ lab_a16f_not_cr:
 
 ;Wedge command !PRINT#
 ;
-;
 lab_a175_cmd_print:
     ;Are we in CMD# mode?  If so, the PRSCR vector points to our routine.
     lda prscr               ;a175  a5 eb
@@ -421,13 +419,13 @@ lab_a1b3:
     cpy fnlen               ;a1b3  c4 d1
     beq lab_a1bf            ;a1b5  f0 08
     lda [mem_001f],y        ;a1b7  b1 1f
-    jsr sub_a306_ciout      ;a1b9  20 06 a3     Send a byte to IEC or IEEE
+    jsr sub_a306_ciout      ;a1b9  20 06 a3   Send a byte to IEC or IEEE
     iny                     ;a1bc  c8
     bne lab_a1b3            ;a1bd  d0 f4
 
 lab_a1bf:
-    jsr sub_a85a_cmp_comma  ;a1bf  20 5a a8     Gets byte at txtptr+0 into A, compares it to a comma
-    cmp #';                 ;a1c2  c9 3b        Is byte at txtptr+0 a semicolon?
+    jsr sub_a85a_cmp_comma  ;a1bf  20 5a a8   Gets byte at txtptr+0 into A, compares it to a comma
+    cmp #';                 ;a1c2  c9 3b      Is byte at txtptr+0 a semicolon?
     bne lab_a1ce_not        ;a1c4  d0 08
     ;Got a semicolon
     jsr chrget              ;a1c6  20 70 00
@@ -665,9 +663,10 @@ lab_a33d_not_iec:
 
 ;Send secondary address to IEC or IEEE for TALK or LISTEN
 sub_a340_lstksa:
-    bit mem_87d0            ;a340  2c d0 87
-    bvs lab_a353_tksa       ;a343  70 0e      Send secondary address to IEC or IEEE for TALK
-
+    bit mem_87d0_torl       ;a340  2c d0 87   Bit test for TALK or LISTEN state
+    bvs lab_a353_tksa       ;a343  70 0e      If we sent TALK, branch to send
+                            ;                    secondary address to IEC or IEEE for TALK
+    ;We sent LISTEN so fall through
 
 ;Send secondary address to IEC or IEC for LISTEN
 lab_a345_second:
@@ -675,7 +674,7 @@ lab_a345_second:
     jsr sub_a8a0_cmp_fa     ;a346  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a34f_not_iec    ;a349  d0 04
     pla                     ;a34b  68
-    jmp sub_a49c_secnd     ;a34c  4c 9c a4   Send secondary address to IEC for LISTEN
+    jmp sub_a49c_secnd      ;a34c  4c 9c a4   Send secondary address to IEC for LISTEN
 
 lab_a34f_not_iec:
     pla                     ;a34f  68
@@ -816,7 +815,7 @@ sub_a3f2_listen = (. - 2)
    ;lda #0x20               ;a3f1  __ a9 20   A = 0x20 (LISTEN)
 
 lab_a3f4:
-    sta mem_87d0            ;a3f4  8d d0 87
+    sta mem_87d0_torl       ;a3f4  8d d0 87   Remember if we sent TALK (0x40) or LISTEN (0x20)
 
 sub_a3f7_list1:
     ora fa                  ;a3f7  05 d4
