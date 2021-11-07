@@ -107,26 +107,26 @@
 
     ;Entry points at the beginning of the ROM
 
-    jmp ep_a036_install         ;a000  4c 36 a0   Install the wedge with CHRGET patch
-    jmp ep_a09c_wedge_cmd       ;a003  4c 9c a0   Perform wedge command at txtptr+0
-    jmp ep_a377_isour           ;a006  4c 77 a3   Send a byte to IEC or IEEE
-    jmp ep_a382_untorl          ;a009  4c 82 a3   Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
-    jmp ep_a128_open            ;a00c  4c 28 a1   Send OPEN to IEC or IEEE
-    jmp ep_a128_close           ;a00f  4c 36 a1   Send CLOSE to IEC or IEEE
+    jmp sub_a036_install        ;a000  4c 36 a0   Install the wedge with CHRGET patch
+    jmp sub_a09c_wedge_cmd      ;a003  4c 9c a0   Perform wedge command at txtptr+0
+    jmp sub_a377_isour          ;a006  4c 77 a3   Send a byte to IEC or IEEE
+    jmp sub_a382_untorl         ;a009  4c 82 a3   Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
+    jmp sub_a128_open           ;a00c  4c 28 a1   Send OPEN to IEC or IEEE
+    jmp sub_a128_close          ;a00f  4c 36 a1   Send CLOSE to IEC or IEEE
     jmp sub_a141_acptr          ;a012  4c 41 a1   Read a byte from IEC or IEEE
     jmp sub_a306_ciout          ;a015  4c 06 a3   Send a byte to IEC or IEEE
     jmp sub_a314_listen         ;a018  4c 14 a3   Send LISTEN to IEC or IEEE
     jmp sub_a32a_unlsn          ;a01b  4c 2a a3   Send UNLISTEN to IEC or IEEE
     jmp sub_a31f_talk           ;a01e  4c 1f a3   Send TALK to IEC or IEEE
     jmp sub_a335_untlk          ;a021  4c 35 a3   Send UNTALK to IEC or IEEE
-    jmp lab_a345_second         ;a024  4c 45 a3   Send secondary address to IEC or IEC for LISTEN
-    jmp lab_a353_tksa           ;a027  4c 53 a3   Send secondary address to IEC or IEEE for TALK
+    jmp sub_a345_second         ;a024  4c 45 a3   Send secondary address to IEC or IEC for LISTEN
+    jmp sub_a353_tksa           ;a027  4c 53 a3   Send secondary address to IEC or IEEE for TALK
     jmp sub_a340_lstksa         ;a02a  4c 40 a3   Send secondary address to IEC or IEEE for TALK or LISTEN
-    jmp lab_a361_atnon          ;a02d  4c 61 a3   Assert ATN on IEC or IEEE
-    jmp lab_a36c_scatn          ;a030  4c 6c a3   Release ATN on IEC or IEEE
-    jmp lab_a119_jmp_lstksa     ;a033  4c 19 a1   Jumps directly to sub_a340_lstksa
+    jmp sub_a361_atnon          ;a02d  4c 61 a3   Assert ATN on IEC or IEEE
+    jmp sub_a36c_scatn          ;a030  4c 6c a3   Release ATN on IEC or IEEE
+    jmp sub_a119_jmp_lstksa     ;a033  4c 19 a1   Jumps directly to sub_a340_lstksa
 
-ep_a036_install:
+sub_a036_install:
     lda #0x4c               ;a036  a9 4c
     sta chrget              ;a038  85 70
     lda #<lab_a061_wedge    ;a03a  a9 61
@@ -185,7 +185,7 @@ lab_a092:
     lda mem_03fe            ;a096  ad fe 03     A = current device number on IEC bus
     sta mem_03ff            ;a099  8d ff 03     Save as copy of current IEC device number
 
-ep_a09c_wedge_cmd:
+sub_a09c_wedge_cmd:
     jsr sub_a85a_cmp_comma  ;a09c  20 5a a8     Gets byte at txtptr+0 into A, compares it to a comma
     pha                     ;a09f  48
     jsr chrget              ;a0a0  20 70 00
@@ -261,7 +261,7 @@ lab_a0fc:
 lab_a106:
     jsr gtbytc+3            ;a106  20 d4 c8     BASIC Evaluate integer 0-255, return it in X
     stx mem_03ff            ;a109  8e ff 03     Save as copy of current IEC device number
-    jmp ep_a09c_wedge_cmd             ;a10c  4c 9c a0
+    jmp sub_a09c_wedge_cmd             ;a10c  4c 9c a0
 
 
 ;Wedge command !LOAD
@@ -285,7 +285,7 @@ lab_a112_cmd_verify = (. - 2)
     jmp lab_a6b7_load_or_verify ;a116  4c b7 a6
 
 ;Jump to Send secondary address to IEC or IEEE for TALK or LISTEN
-lab_a119_jmp_lstksa:
+sub_a119_jmp_lstksa:
     jmp sub_a340_lstksa     ;a119  4c 40 a3     Send secondary address to IEC or IEEE for TALK or LISTEN
 
 ;Wedge command !OPEN
@@ -302,7 +302,7 @@ lab_a11c_cmd_open:
 
 
 ;Send OPEN to IEC or IEEE
-ep_a128_open:
+sub_a128_open:
     jsr sub_a8a0_cmp_fa     ;a128  20 a0 a8     Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a130_not_iec    ;a12b  d0 03
     jmp sub_a689_open       ;a12d  4c 89 a6     Send OPEN to IEC
@@ -321,7 +321,7 @@ lab_a133_cmd_close:
 
 
 ;Send CLOSE to IEC or IEEE
-ep_a128_close:
+sub_a128_close:
     jsr sub_a8a0_cmp_fa     ;a136  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a13e_not_iec    ;a139  d0 03
     jmp sub_a65e_close      ;a13b  4c 5e a6   Send CLOSE to IEC
@@ -664,12 +664,12 @@ lab_a33d_not_iec:
 ;Send secondary address to IEC or IEEE for TALK or LISTEN
 sub_a340_lstksa:
     bit mem_87d0_torl       ;a340  2c d0 87   Bit test for TALK or LISTEN state
-    bvs lab_a353_tksa       ;a343  70 0e      If we sent TALK, branch to send
+    bvs sub_a353_tksa       ;a343  70 0e      If we sent TALK, branch to send
                             ;                    secondary address to IEC or IEEE for TALK
     ;We sent LISTEN so fall through
 
 ;Send secondary address to IEC or IEC for LISTEN
-lab_a345_second:
+sub_a345_second:
     pha                     ;a345  48
     jsr sub_a8a0_cmp_fa     ;a346  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a34f_not_iec    ;a349  d0 04
@@ -682,7 +682,7 @@ lab_a34f_not_iec:
 
 
 ;Send secondary address to IEC or IEEE for TALK
-lab_a353_tksa:
+sub_a353_tksa:
     pha                     ;a353  48
     jsr sub_a8a0_cmp_fa     ;a354  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a35d_not_iec    ;a357  d0 04
@@ -695,7 +695,7 @@ lab_a35d_not_iec:
 
 
 ;Assert ATN on IEC or IEEE
-lab_a361_atnon:
+sub_a361_atnon:
     jsr sub_a8a0_cmp_fa     ;a361  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a369_not_iec    ;a364  d0 03
     jmp sub_a4aa_atnon      ;a366  4c aa a4   Assert ATN (turns bit 3 of VIA PORT A on)
@@ -705,7 +705,7 @@ lab_a369_not_iec:
 
 
 ;Release ATN on IEC or IEEE
-lab_a36c_scatn:
+sub_a36c_scatn:
     jsr sub_a8a0_cmp_fa     ;a36c  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a374_not_iec    ;a36f  d0 03
     jmp sub_a4a1_scatn      ;a371  4c a1 a4   Release ATN on IEC
@@ -714,7 +714,7 @@ lab_a374_not_iec:
     jmp scatn               ;a374  4c 48 f1   Release ATN on IEEE
 
 
-ep_a377_isour:
+sub_a377_isour:
     jsr sub_a8a0_cmp_fa     ;a377  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a37f_not_iec    ;a37a  d0 03
     jmp sub_a423_isour      ;a37c  4c 23 a4   Send last byte to IEC
@@ -723,7 +723,7 @@ lab_a37f_not_iec:
     jmp isour               ;a37f  4c 09 f1   KERNAL Send last byte to IEEE
 
 
-ep_a382_untorl:
+sub_a382_untorl:
     pha                     ;a382  48
     jsr sub_a8a0_cmp_fa     ;a383  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a38c_not_iec    ;a386  d0 04
