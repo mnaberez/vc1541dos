@@ -92,8 +92,8 @@
     second = 0xf143         ;KERNAL Send Secondary Address to IEEE
     prepar = 0xf148         ;KERNAL Prepare for IEEE Data
     filout = 0xf19e         ;KERNAL Send a byte to file on IEEE
-    untalk = 0xf1ae         ;KERNAL Send UNTALK to IEEE
-    unlist = 0xf1b9         ;KERNAL Send UNLISTEN to IEEE
+    untlk = 0xf1ae          ;KERNAL Send UNTALK to IEEE
+    unlsn = 0xf1b9          ;KERNAL Send UNLISTEN to IEEE
     adrlow = 0xf1c0         ;KERNAL Get low byte of address
     chrout = 0xffd2         ;KERNAL Send a char to the current output device
     lodmsg = 0xf46d         ;KERNAL Print LOADING or VERIFYING if in direct mode
@@ -264,12 +264,6 @@ lab_a106:
     stx mem_03ff            ;a109  8e ff 03     Save as copy of current IEC device number
     jmp ep_a09c_wedge_cmd             ;a10c  4c 9c a0
 
-;Wedge command !VERIFY
-;
-;  !VERIFY"filename"         Verify against BASIC program area
-;  !VERIFY"filename",start   Verify against start address
-;
-lab_a112_cmd_verify = lab_a10f_cmd_load + 3
 
 ;Wedge command !LOAD
 ;
@@ -277,10 +271,18 @@ lab_a112_cmd_verify = lab_a10f_cmd_load + 3
 ;  !LOAD"filename",start   Load into start address
 ;
 lab_a10f_cmd_load:
-    lda #0                  ;a10f  a9 00
+    lda #0                  ;a10f  a9 00        A = 0 (LOAD)
     bit 0xffa9              ;a111  2c a9 ff     VERIFY jumps here mid-instruction = LDA #0xff
-    sta verchk              ;a114  85 9d        Store in KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
-    ;A=0 for LOAD, A=0xFF for VERIFY
+
+;Wedge command !VERIFY
+;
+;  !VERIFY"filename"         Verify against BASIC program area
+;  !VERIFY"filename",start   Verify against start address
+;
+lab_a112_cmd_verify = (. - 2)
+   ;lda #0xff              ;a111  __ a9 ff     A = FF (VERIFY)
+
+    sta verchk             ;a114  85 9d        Store in KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     jmp lab_a6b7_load_or_verify ;a116  4c b7 a6
 
 ;Jump to Send secondary address to IEC or IEEE for TALK or LISTEN
@@ -639,10 +641,10 @@ lab_a327_not_iec:
 sub_a32a_unlsn:
     jsr sub_a8a0_cmp_fa     ;a32a  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a332_not_iec    ;a32d  d0 03
-    jmp lab_a4ed+1          ;a32f  4c ee a4
+    jmp sub_a4ef_unlsn      ;a32f  4c ee a4   Send UNLISTEN to IEC
 
 lab_a332_not_iec:
-    jmp unlist              ;a332  4c b9 f1   KERNAL Send UNLISTEN to IEEE
+    jmp unlsn               ;a332  4c b9 f1   KERNAL Send UNLISTEN to IEEE
 
 
 ;Send UNTALK to IEC or IEEE
@@ -652,7 +654,7 @@ sub_a335_untlk:
     jmp sub_a4e4_untalk     ;a33a  4c e4 a4   Send UNTALK to IEC
 
 lab_a33d_not_iec:
-    jmp untalk              ;a33d  4c ae f1   KERNAL Send UNTALK to IEEE
+    jmp untlk               ;a33d  4c ae f1   KERNAL Send UNTALK to IEEE
 
 
 ;Send secondary address to IEC or IEEE for TALK or LISTEN
@@ -791,14 +793,14 @@ lab_a3ea:
     tax                     ;a3ed  aa
     rts                     ;a3ee  60
 
-;Send LISTEN to IEC
-sub_a3f2_listen = lab_a3f1 + 1
-
 ;Send TALK to IEC
 sub_a3ef_talk:
     lda #0x40               ;a3ef  a9 40      A = 0x40 (TALK)
-lab_a3f1:
-    bit 0x20a9              ;a3f1  2c a9 20   sub_a3f2_listen jumps here mid-instruction = LDA #0x20 (LISTEN)
+    bit 0x20a9              ;a3f1  2c a9 20   sub_a3f2_listen jumps here mid-instruction
+
+;Send LISTEN to IEC
+sub_a3f2_listen = (. - 2)
+   ;lda #0x20               ;a3f1  __ a9 20   A = 0x20 (LISTEN)
 
 lab_a3f4:
     sta mem_87d0            ;a3f4  8d d0 87
@@ -900,9 +902,8 @@ lab_a482:
 lab_a490:
     lda #0b10000000         ;a490  a9 80      A = status bit for device not present error
     bit 0x03a9              ;a492  2c a9 03   lab_a449, lab_a482 jump here mid-instruction
-
 lab_a493 = (. - 2)
-    ;lda #0b00000011        ;a492  __ a9 03   A = status bits for timeout while writing
+   ;lda #0b00000011         ;a492  __ a9 03   A = status bits for timeout while writing
 
 lab_a495:
     jsr sub_a580_st_or_a    ;a495  20 80 a5   KERNAL STATUS = STATUS | A
@@ -974,9 +975,12 @@ sub_a4e4_untalk:
     sei                     ;a4e4  78
     jsr sub_a3b9            ;a4e5  20 b9 a3
     jsr sub_a4aa_via_pa3_on ;a4e8  20 aa a4     Turn bit 3 of VIA PORT A on (ATN out)
-    lda #0x5f               ;a4eb  a9 5f
-lab_a4ed:
-    bit 0x3fa9              ;a4ed  2c a9 3f
+    lda #0x5f               ;a4eb  a9 5f        A = 0x5F (UNTALK)
+    bit 0x3fa9              ;a4ed  2c a9 3f     some routines jump here mid-instruction
+
+;Send UNLISTEN to IEC
+sub_a4ef_unlsn = (. - 2)
+   ;lda #0x3f               ;a4ed  __ a9 ef     A = 0x3F (UNLISTEN)
     jsr sub_a3f7            ;a4f0  20 f7 a3
 
 lab_a4f3:
@@ -1158,7 +1162,7 @@ lab_a5d8:
     iny                     ;a5dd  c8
     cpy fnlen               ;a5de  c4 d1
     bne lab_a5d8            ;a5e0  d0 f6
-    jmp lab_a4ed+1          ;a5e2  4c ee a4
+    jmp sub_a4ef_unlsn      ;a5e2  4c ee a4     Send UNLISTEN to IEC
 
 lab_a5e5_cmd_save:
     jsr sub_a5eb_save       ;a5e5  20 eb a5
@@ -1230,7 +1234,7 @@ lab_a647:
     bne lab_a647            ;a659  d0 ec
 
 lab_a65b:
-    jsr lab_a4ed+1          ;a65b  20 ee a4
+    jsr sub_a4ef_unlsn      ;a65b  20 ee a4     Send UNLISTEN to IEC
 
 sub_a65e:
     bit sa                  ;a65e  24 d3
@@ -1240,7 +1244,7 @@ sub_a65e:
     and #0xef               ;a667  29 ef
     ora #0xe0               ;a669  09 e0
     jsr sub_a49c_second     ;a66b  20 9c a4     Send secondary address to IEC for LISTEN
-    jsr lab_a4ed+1          ;a66e  20 ee a4
+    jsr sub_a4ef_unlsn      ;a66e  20 ee a4     Send UNLISTEN to IEC
 
 lab_a671:
     rts                     ;a671  60
@@ -1300,7 +1304,7 @@ lab_a6aa:
     iny                     ;a6af  c8
     cpy fnlen               ;a6b0  c4 d1
     bne lab_a6aa            ;a6b2  d0 f6
-    jmp lab_a4ed+1          ;a6b4  4c ee a4
+    jmp sub_a4ef_unlsn      ;a6b4  4c ee a4   Send UNLISTEN to IEC
 
 ;Called with A=0 for LOAD, A=0xFF for VERIFY
 lab_a6b7_load_or_verify:
