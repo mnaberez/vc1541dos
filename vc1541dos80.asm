@@ -757,39 +757,39 @@ sub_a3ad_set_fa_st:
     sta status              ;a3b6  85 96        KERNAL STATUS = 0 (no error)
     rts                     ;a3b8  60
 
-;Turn VIA PA4 on
-sub_a3b9_via_pa4_on:
+;Set clock line high (inverted)
+sub_a3b9_clkhi:
     lda via_port_a          ;a3b9  ad 41 e8
     ora #0b00010000         ;a3bc  09 10
     sta via_port_a          ;a3be  8d 41 e8
     rts                     ;a3c1  60
 
-;Turn VIA PA4 off
-sub_a3c2_via_pa4_off:
+;Set clock line low (inverted)
+sub_a3c2_clklo:
     lda via_port_a          ;a3c2  ad 41 e8
     and #0b11101111         ;a3c5  29 ef
     sta via_port_a          ;a3c7  8d 41 e8
     rts                     ;a3ca  60
 
-;Turn VIA PA5 off
-sub_a3cb_via_pa5_off:
+;Set data line high (inverted)
+sub_a3cb_datahi:
     lda via_port_a          ;a3cb  ad 41 e8
     and #0b11011111         ;a3ce  29 df
     sta via_port_a          ;a3d0  8d 41 e8
     rts                     ;a3d3  60
 
-;Turn VIA PA5 on
-sub_a3d4_via_pa5_on:
+;Set data line low (inverted)
+sub_a3d4_datalo:
     lda via_port_a          ;a3d4  ad 41 e8
     ora #0b00100000         ;a3d7  09 20
     sta via_port_a          ;a3d9  8d 41 e8
     rts                     ;a3dc  60
 
 ;Debounce VIA PA then ASL A
-sub_a3dd_deb_asl:
+sub_a3dd_debvia:
     lda via_port_a          ;a3dd  ad 41 e8
     cmp via_port_a          ;a3e0  cd 41 e8
-    bne sub_a3dd_deb_asl    ;a3e3  d0 f8      Debounce VIA PA then ASL A
+    bne sub_a3dd_debvia     ;a3e3  d0 f8      Debounce VIA PA then ASL A
     asl a                   ;a3e5  0a
     rts                     ;a3e6  60
 
@@ -830,41 +830,41 @@ lab_a408:
     pla                     ;a408  68
     sta bsour               ;a409  85 a5      IEEE byte buffer for output (FF means no character)
     sei                     ;a40b  78
-    jsr sub_a3cb_via_pa5_off;a40c  20 cb a3   Turn VIA PA5 off
+    jsr sub_a3cb_datahi     ;a40c  20 cb a3   Set data line high (inverted)
     cmp #0x3f               ;a40f  c9 3f
     bne lab_a416            ;a411  d0 03
-    jsr sub_a3c2_via_pa4_off;a413  20 c2 a3   Turn VIA PA4 off
+    jsr sub_a3c2_clklo      ;a413  20 c2 a3   Set clock line low (inverted)
 
 lab_a416:
     jsr sub_a4aa_via_pa3_on ;a416  20 aa a4   Turn bit 3 of VIA PORT A on (ATN out)
 
 sub_a419:
     sei                     ;a419  78
-    jsr sub_a3b9_via_pa4_on ;a41a  20 b9 a3   Turn VIA PA4 on
-    jsr sub_a3cb_via_pa5_off;a41d  20 cb a3   Turn VIA PA5 off
+    jsr sub_a3b9_clkhi      ;a41a  20 b9 a3   Set clock line high (inverted)
+    jsr sub_a3cb_datahi     ;a41d  20 cb a3   Set data line high (inverted)
     jsr sub_a3e7_delay      ;a420  20 e7 a3   Delay loop
 
 sub_a423:
     sei                     ;a423  78
-    jsr sub_a3cb_via_pa5_off;a424  20 cb a3   Turn VIA PA5 off
-    jsr sub_a3dd_deb_asl    ;a427  20 dd a3   Debounce VIA PA then ASL A
+    jsr sub_a3cb_datahi     ;a424  20 cb a3   Set data line high (inverted)
+    jsr sub_a3dd_debvia     ;a427  20 dd a3   Debounce VIA PA then ASL A
     bcs lab_a490_not_pres   ;a42a  b0 64      Branch to device not present error
-    jsr sub_a3c2_via_pa4_off;a42c  20 c2 a3   Turn VIA PA4 off
+    jsr sub_a3c2_clklo      ;a42c  20 c2 a3   Set clock line low (inverted)
     bit mem_00fd            ;a42f  24 fd
     bpl lab_a43d            ;a431  10 0a
 
 lab_a433:
-    jsr sub_a3dd_deb_asl    ;a433  20 dd a3   Debounce VIA PA then ASL A
+    jsr sub_a3dd_debvia     ;a433  20 dd a3   Debounce VIA PA then ASL A
     bcc lab_a433            ;a436  90 fb
 
 lab_a438:
-    jsr sub_a3dd_deb_asl    ;a438  20 dd a3   Debounce VIA PA then ASL A
+    jsr sub_a3dd_debvia     ;a438  20 dd a3   Debounce VIA PA then ASL A
     bcs lab_a438            ;a43b  b0 fb
 
 lab_a43d:
-    jsr sub_a3dd_deb_asl    ;a43d  20 dd a3   Debounce VIA PA then ASL A
+    jsr sub_a3dd_debvia     ;a43d  20 dd a3   Debounce VIA PA then ASL A
     bcc lab_a43d            ;a440  90 fb
-    jsr sub_a3b9_via_pa4_on ;a442  20 b9 a3   Turn VIA PA4 on
+    jsr sub_a3b9_clkhi      ;a442  20 b9 a3   Set clock line high (inverted)
     lda #0x08               ;a445  a9 08
     sta mem_00ff            ;a447  85 ff
 
@@ -876,14 +876,14 @@ lab_a449:
     bcc lab_a493_wr_tmo     ;a452  90 3f
     ror bsour               ;a454  66 a5      IEEE byte buffer for output (FF means no character)
     bcs lab_a45d            ;a456  b0 05
-    jsr sub_a3d4_via_pa5_on ;a458  20 d4 a3   Turn VIA PA5 on
+    jsr sub_a3d4_datalo     ;a458  20 d4 a3   Set data line low (inverted)
     bne lab_a460            ;a45b  d0 03
 
 lab_a45d:
-    jsr sub_a3cb_via_pa5_off;a45d  20 cb a3   Turn VIA PA5 off
+    jsr sub_a3cb_datahi     ;a45d  20 cb a3   Set data line high (inverted)
 
 lab_a460:
-    jsr sub_a3c2_via_pa4_off;a460  20 c2 a3   Turn VIA PA4 off
+    jsr sub_a3c2_clklo      ;a460  20 c2 a3   Set clock line low (inverted)
     nop                     ;a463  ea
     nop                     ;a464  ea
     nop                     ;a465  ea
@@ -904,7 +904,7 @@ lab_a482:
     lda via_ifr             ;a482  ad 4d e8
     and #0x20               ;a485  29 20
     bne lab_a493_wr_tmo     ;a487  d0 0a      Branch to write timeout error
-    jsr sub_a3dd_deb_asl    ;a489  20 dd a3   Debounce VIA PA then ASL A
+    jsr sub_a3dd_debvia     ;a489  20 dd a3   Debounce VIA PA then ASL A
     bcs lab_a482            ;a48c  b0 f4
     cli                     ;a48e  58
     rts                     ;a48f  60
@@ -952,12 +952,12 @@ sub_a4bc_tksa:
     sta bsour               ;a4bc  85 a5
     jsr sub_a419            ;a4be  20 19 a4
     sei                     ;a4c1  78
-    jsr sub_a3d4_via_pa5_on ;a4c2  20 d4 a3   Turn VIA PA5 on
+    jsr sub_a3d4_datalo     ;a4c2  20 d4 a3   Set data line low (inverted)
     jsr sub_a4a1_via_pa3_on ;a4c5  20 a1 a4   Prepare for data on IEC (Turn bit 3 of VIA PORT A off) (ATN out)
-    jsr sub_a3c2_via_pa4_off;a4c8  20 c2 a3   Turn VIA PA4 off
+    jsr sub_a3c2_clklo      ;a4c8  20 c2 a3   Set clock line low (inverted)
 
 lab_a4cb:
-    jsr sub_a3dd_deb_asl    ;a4cb  20 dd a3   Debounce VIA PA then ASL A
+    jsr sub_a3dd_debvia     ;a4cb  20 dd a3   Debounce VIA PA then ASL A
     bmi lab_a4cb            ;a4ce  30 fb
     cli                     ;a4d0  58
     rts                     ;a4d1  60
@@ -983,7 +983,7 @@ lab_a4e0:
 ;Send UNTALK to IEC
 sub_a4e4_untlk:
     sei                     ;a4e4  78
-    jsr sub_a3b9_via_pa4_on ;a4e5  20 b9 a3   Turn VIA PA4 on
+    jsr sub_a3b9_clkhi      ;a4e5  20 b9 a3   Set clock line high (inverted)
     jsr sub_a4aa_via_pa3_on ;a4e8  20 aa a4   Turn bit 3 of VIA PORT A on (ATN out)
     lda #0x5f               ;a4eb  a9 5f      A = 0x5F (UNTALK)
     bit 0x3fa9              ;a4ed  2c a9 3f   some routines jump here mid-instruction
@@ -1004,10 +1004,10 @@ lab_a4f9:
     dex                     ;a4f9  ca
     bne lab_a4f9            ;a4fa  d0 fd
     tax                     ;a4fc  aa
-    jsr sub_a3c2_via_pa4_off;a4fd  20 c2 a3   Turn VIA PA4 off
+    jsr sub_a3c2_clklo      ;a4fd  20 c2 a3   Set clock line low (inverted)
     lda #0x00               ;a500  a9 00
     sta mem_00a0            ;a502  85 a0
-    jmp sub_a3cb_via_pa5_off;a504  4c cb a3   Turn VIA PA5 off
+    jmp sub_a3cb_datahi     ;a504  4c cb a3   Set data line high (inverted)
 
 ;Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
 sub_a507:
@@ -1020,10 +1020,10 @@ lab_a50e:
     sei                     ;a50e  78
     lda #0x00               ;a50f  a9 00
     sta mem_00ff            ;a511  85 ff
-    jsr sub_a3c2_via_pa4_off;a513  20 c2 a3   Turn VIA PA4 off
+    jsr sub_a3c2_clklo      ;a513  20 c2 a3   Set clock line low (inverted)
 
 lab_a516:
-    jsr sub_a3dd_deb_asl    ;a516  20 dd a3   Debounce VIA PA then ASL A
+    jsr sub_a3dd_debvia     ;a516  20 dd a3   Debounce VIA PA then ASL A
     bpl lab_a516            ;a519  10 fb
 
 lab_a51b:
@@ -1031,14 +1031,14 @@ lab_a51b:
     sta via_timer_2_lo      ;a51d  8d 48 e8
     lda #0x01               ;a520  a9 01
     sta via_timer_2_hi      ;a522  8d 49 e8
-    jsr sub_a3cb_via_pa5_off;a525  20 cb a3   Turn VIA PA5 off
+    jsr sub_a3cb_datahi     ;a525  20 cb a3   Set data line high (inverted)
     lda via_ifr             ;a528  ad 4d e8
 
 lab_a52b:
     lda via_ifr             ;a52b  ad 4d e8
     and #0x20               ;a52e  29 20
     bne lab_a539            ;a530  d0 07
-    jsr sub_a3dd_deb_asl    ;a532  20 dd a3   Debounce VIA PA then ASL A
+    jsr sub_a3dd_debvia     ;a532  20 dd a3   Debounce VIA PA then ASL A
     bmi lab_a52b            ;a535  30 f4
     bpl lab_a551            ;a537  10 18
 
@@ -1049,8 +1049,8 @@ lab_a539:
     jmp lab_a495_error      ;a53f  4c 95 a4
 
 lab_a542:
-    jsr sub_a3d4_via_pa5_on ;a542  20 d4 a3   Turn VIA PA5 on
-    jsr sub_a3c2_via_pa4_off;a545  20 c2 a3   Turn VIA PA4 off
+    jsr sub_a3d4_datalo     ;a542  20 d4 a3   Set data line low (inverted)
+    jsr sub_a3c2_clklo      ;a545  20 c2 a3   Set clock line low (inverted)
     lda #0b01000000         ;a548  a9 40      A = status bit for End of File (EOF)
     jsr sub_a580_st_or_a    ;a54a  20 80 a5   KERNAL STATUS = STATUS | A
     inc mem_00ff            ;a54d  e6 ff
@@ -1076,7 +1076,7 @@ lab_a562:
     bmi lab_a562            ;a56b  30 f5
     dec mem_00ff            ;a56d  c6 ff
     bne lab_a555            ;a56f  d0 e4
-    jsr sub_a3d4_via_pa5_on ;a571  20 d4 a3   Turn VIA PA5 on
+    jsr sub_a3d4_datalo     ;a571  20 d4 a3   Set data line low (inverted)
     bit status              ;a574  24 96
     bvc lab_a57b            ;a576  50 03
     jsr sub_a4f6            ;a578  20 f6 a4
