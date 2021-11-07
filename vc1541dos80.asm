@@ -49,7 +49,7 @@
     error = 0xb3cf          ;BASIC Print error message offset by X in msgs table and return to prompt
     rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
     sub_b965 = 0xb965
-    lab_bb1d = 0xbb1d
+    prstr = 0xbb1d          ;BASIC Print null-terminated string at A=addr low, Y=addr hi
     sub_bb44 = 0xbb44
     lab_b4ad = 0xb4ad
     restor = 0xb7b7         ;BASIC Perform RESTORE
@@ -102,8 +102,8 @@
     resbas = 0xf351         ;KERNAL Reset BASIC execution to start, clear, and chain
     srchng = 0xf449         ;KERNAL Print SEARCHING if in direct mode
     nprsnt = 0xf4bb         ;KERNAL Print ?DEVICE NOT PRESENT error
-    sndnam = 0xf4a5         ;KERNAL Send filename to IEEE
-    lab_f72f = 0xf72f
+    open = 0xf4a5           ;KERNAL Send OPEN to IEEE
+    close = 0xf72f          ;KERNAL Send CLOSE to IEEE
     stop = 0xf92b           ;KERNAL Test STOP key and act if pressed
 
     ;Entry points at the beginning of the ROM
@@ -112,8 +112,8 @@
     jmp ep_a09c_wedge_cmd       ;a003  4c 9c a0   Perform wedge command at txtptr+0
     jmp ep_a377_ciout           ;a006  4c 77 a3   Send a byte to IEC or IEEE
     jmp ep_a382_untorl          ;a009  4c 82 a3   Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
-    jmp ep_a128_sndnam          ;a00c  4c 28 a1   Send filename to IEC or IEEE
-    jmp lab_a136                ;a00f  4c 36 a1
+    jmp ep_a128_open            ;a00c  4c 28 a1   Send OPEN to IEC or IEEE
+    jmp ep_a128_close           ;a00f  4c 36 a1   Send CLOSE to IEC or IEEE
     jmp sub_a141                ;a012  4c 41 a1
     jmp sub_a306_filout         ;a015  4c 06 a3   Send byte to file on IEC or IEEE
     jmp sub_a314_listen         ;a018  4c 14 a3   Send LISTEN to IEC or IEEE
@@ -139,7 +139,7 @@ ep_a036_install:
     jsr sub_a390_setup      ;a047  20 90 a3   Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
     lda #<banner            ;a04a  a9 51
     ldy #>banner            ;a04c  a0 a0
-    jmp lab_bb1d            ;a04e  4c 1d bb
+    jmp prstr               ;a04e  4c 1d bb   BASIC Print null-terminated string at A=addr low, Y=addr hi
 
 banner:
     .ascii "VC-1541-DOS/80"
@@ -299,14 +299,17 @@ lab_a11c_cmd_open:
     jsr sub_a8a8_parse_sa_1 ;a11f  20 a8 a8     Parse integer into SA with leading # sign, or Syntax Error
     jsr iscoma              ;a122  20 f5 be     BASIC Does CHRGET point to a comma?  Syntax Error if not
     jsr sub_a7b6_eval_fname ;a125  20 b6 a7     Evaluate expression as filename; set up FNLEN and FNADR
+    ;Fall through
 
-ep_a128_sndnam:
+
+;Send OPEN to IEC or IEEE
+ep_a128_open:
     jsr sub_a8a0_cmp_fa     ;a128  20 a0 a8     Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a130_not_iec    ;a12b  d0 03
-    jmp sub_a689_sndnam     ;a12d  4c 89 a6     Send filename to IEC
+    jmp sub_a689_open       ;a12d  4c 89 a6     Send OPEN to IEC
 
 lab_a130_not_iec:
-    jmp sndnam              ;a130  4c a5 f4     Send filename to IEEE
+    jmp open                ;a130  4c a5 f4     Send filename to IEEE
 
 
 ;Wedge command !CLOSE
@@ -315,15 +318,17 @@ lab_a130_not_iec:
 ;
 lab_a133_cmd_close:
     jsr sub_a8a8_parse_sa_1 ;a133  20 a8 a8   Parse integer into SA with leading # sign, or Syntax Error
+    ;Fall through
 
 
-lab_a136:
+;Send CLOSE to IEC or IEEE
+ep_a128_close:
     jsr sub_a8a0_cmp_fa     ;a136  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a13e_not_iec    ;a139  d0 03
-    jmp sub_a65e            ;a13b  4c 5e a6
+    jmp sub_a65e_close      ;a13b  4c 5e a6   Send CLOSE to IEC
 
 lab_a13e_not_iec:
-    jmp lab_f72f            ;a13e  4c 2f f7
+    jmp close               ;a13e  4c 2f f7   Send CLOSE to IEC
 
 
 sub_a141:
@@ -438,7 +443,7 @@ lab_a1ce_not:
     jsr sub_a306_filout     ;a1da  20 06 a3   Send byte to file on IEC or IEEE
 
 lab_a1dd_done:
-    jmp sub_a32a_unlsn     ;a1dd  4c 2a a3   Send UNLISTEN to IEC or IEEE
+    jmp sub_a32a_unlsn      ;a1dd  4c 2a a3   Send UNLISTEN to IEC or IEEE
 
 lab_a1e0_cmd_get:
     jsr sub_a8a8_parse_sa_1 ;a1e0  20 a8 a8   Parse integer into SA with leading # sign, or Syntax Error
@@ -651,7 +656,7 @@ lab_a332_not_iec:
 sub_a335_untlk:
     jsr sub_a8a0_cmp_fa     ;a335  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a33d_not_iec    ;a338  d0 03
-    jmp sub_a4e4_untalk     ;a33a  4c e4 a4   Send UNTALK to IEC
+    jmp sub_a4e4_untlk      ;a33a  4c e4 a4   Send UNTALK to IEC
 
 lab_a33d_not_iec:
     jmp untlk               ;a33d  4c ae f1   KERNAL Send UNTALK to IEEE
@@ -966,12 +971,12 @@ lab_a4db:
     pla                     ;a4df  68
 
 lab_a4e0:
-    sta bsour            ;a4e0  85 a5
+    sta bsour               ;a4e0  85 a5
     clc                     ;a4e2  18
     rts                     ;a4e3  60
 
 ;Send UNTALK to IEC
-sub_a4e4_untalk:
+sub_a4e4_untlk:
     sei                     ;a4e4  78
     jsr sub_a3b9            ;a4e5  20 b9 a3
     jsr sub_a4aa_via_pa3_on ;a4e8  20 aa a4     Turn bit 3 of VIA PORT A on (ATN out)
@@ -1178,7 +1183,7 @@ sub_a5eb_save:
     jmp lab_bf00            ;a5f9  4c 00 bf
 
 lab_a5fc:
-    jsr sub_a689_sndnam     ;a5fc  20 89 a6     Send filename to IEC
+    jsr sub_a689_open       ;a5fc  20 89 a6     Send OPEN to IEC
     jsr sub_a85a_cmp_comma  ;a5ff  20 5a a8     Gets byte at txtptr+0 into A, compares it to a comma
     bne lab_a623_no_addr    ;a602  d0 1f        Branch if it's not a command
     ;Found comma
@@ -1236,17 +1241,18 @@ lab_a647:
 lab_a65b:
     jsr sub_a4ef_unlsn      ;a65b  20 ee a4     Send UNLISTEN to IEC
 
-sub_a65e:
+;Send CLOSE to IEC
+sub_a65e_close:
     bit sa                  ;a65e  24 d3
-    bmi lab_a671            ;a660  30 0f
+    bmi lab_a671_done       ;a660  30 0f
     jsr sub_a3f2_listen     ;a662  20 f2 a3     Send LISTEN to IEC
     lda sa                  ;a665  a5 d3        A = KERNAL current secondary address
     and #0xef               ;a667  29 ef
-    ora #0xe0               ;a669  09 e0
+    ora #0xe0               ;a669  09 e0        OR with 0xE0 = CLOSE
     jsr sub_a49c_second     ;a66b  20 9c a4     Send secondary address to IEC for LISTEN
     jsr sub_a4ef_unlsn      ;a66e  20 ee a4     Send UNLISTEN to IEC
 
-lab_a671:
+lab_a671_done:
     rts                     ;a671  60
 
 sub_a672:
@@ -1272,22 +1278,22 @@ lab_a688:
     rts                     ;a688  60
 
 ;Send filename to IEC
-sub_a689_sndnam:
+sub_a689_open:
     lda sa                  ;a689  a5 d3      A = KERNAL current secondary address
     bpl lab_a68f            ;a68b  10 02
 
-lab_a68d:
+lab_a68d_error:
     clc                     ;a68d  18
     rts                     ;a68e  60
 
 lab_a68f:
     ldy fnlen               ;a68f  a4 d1
-    beq lab_a68d            ;a691  f0 fa
+    beq lab_a68d_error      ;a691  f0 fa
     lda #0x00               ;a693  a9 00
     sta status              ;a695  85 96      KERNAL STATUS = 0 (no error)
     jsr sub_a3f2_listen     ;a697  20 f2 a3   Send LISTEN to IEC
     lda sa                  ;a69a  a5 d3      A = KERNAL current secondary address
-    ora #0xf0               ;a69c  09 f0
+    ora #0xf0               ;a69c  09 f0      OR it with 0xF0 = OPEN
     jsr sub_a49c_second     ;a69e  20 9c a4   Send secondary address to IEC for LISTEN
     lda status              ;a6a1  a5 96      A = KERNAL status
     bpl lab_a6a8_present    ;a6a3  10 03      Branch if device not present error bit = 0
@@ -1356,12 +1362,12 @@ lab_a6ff:
     jsr srchng              ;a6ff  20 49 f4   KERNAL Print SEARCHING if in direct mode
     lda #(0 | 0x60)         ;a702  a9 60      A = secondary address 0 (LOAD) | 0x60
     sta sa                  ;a704  85 d3      Set SA (KERNAL current secondary address)
-    jsr sub_a689_sndnam     ;a706  20 89 a6   Send filename to IEC
+    jsr sub_a689_open       ;a706  20 89 a6   Send OPEN to IEC
     jsr sub_a3ef_talk       ;a709  20 ef a3   Send TALK to IEC
     lda sa                  ;a70c  a5 d3      A = KERNAL current secondary address
     jsr sub_a4bc_tksa       ;a70e  20 bc a4   Send secondary address to an IEC device commanded to talk
     jsr sub_a507            ;a711  20 07 a5   Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
-    sta salptr            ;a714  85 c9
+    sta salptr              ;a714  85 c9
     lda status              ;a716  a5 96
     lsr a                   ;a718  4a
     lsr a                   ;a719  4a
@@ -1402,7 +1408,7 @@ lab_a750:
 
     jsr sub_a89a            ;a756  20 9a a8
     bne lab_a75e            ;a759  d0 03
-    jmp sub_a65e            ;a75b  4c 5e a6
+    jmp sub_a65e_close      ;a75b  4c 5e a6     Send CLOSE to IEC
 
 lab_a75e:
     jsr sub_a507            ;a75e  20 07 a5     Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
@@ -1416,12 +1422,12 @@ lab_a75e:
     beq lab_a794            ;a76b  f0 27        Branch if performing LOAD
     ;Performing VERIFY
     ldy #0x00               ;a76d  a0 00
-    cmp [salptr],y        ;a76f  d1 c9
+    cmp [salptr],y          ;a76f  d1 c9
     beq lab_a796            ;a771  f0 23
     lda #0b00010000         ;a773  a9 10        A = status bit for VERIFY error
     jsr sub_a580_st_or_a    ;a775  20 80 a5     KERNAL STATUS = STATUS | A
-    jsr sub_a4e4_untalk     ;a778  20 e4 a4     Send UNTALK to IEC
-    jsr sub_a65e            ;a77b  20 5e a6
+    jsr sub_a4e4_untlk      ;a778  20 e4 a4     Send UNTALK to IEC
+    jsr sub_a65e_close      ;a77b  20 5e a6     Send CLOSE to IEC
     jsr prcrlf              ;a77e  20 34 d5     BASIC Print carriage return and linefeed
     lda salptr              ;a781  a5 c9
     sta ml1ptr              ;a783  85 fb
@@ -1439,8 +1445,8 @@ lab_a796:
     jsr sub_a682            ;a796  20 82 a6
     bit status              ;a799  24 96
     bvc lab_a750            ;a79b  50 b3
-    jsr sub_a4e4_untalk     ;a79d  20 e4 a4   Send UNTALK to IEC
-    jsr sub_a65e            ;a7a0  20 5e a6
+    jsr sub_a4e4_untlk      ;a79d  20 e4 a4   Send UNTALK to IEC
+    jsr sub_a65e_close      ;a7a0  20 5e a6   Send CLOSE to IEC
     lda tapwct              ;a7a3  a5 ba
     cmp #',                 ;a7a5  c9 2c
     bne lab_a7b5_done       ;a7a7  d0 0c
@@ -1494,7 +1500,7 @@ lab_a7d5_no_fname:
 lab_a7e1_fname:
     lda #(0 | 0x60)         ;a7e1  a9 60      A = secondary address 0 (LOAD) | 0x60
     sta sa                  ;a7e3  85 d3      Set SA (KERNAL current secondary address)
-    jsr sub_a689_sndnam     ;a7e5  20 89 a6   Send filename to IEC
+    jsr sub_a689_open       ;a7e5  20 89 a6   Send OPEN to IEC
     jsr sub_a3ef_talk       ;a7e8  20 ef a3   Send TALK to IEC
     jsr sub_a4bc_tksa       ;a7eb  20 bc a4   Send secondary address to an IEC device commanded to talk
     lda #0x00               ;a7ee  a9 00
@@ -1535,7 +1541,7 @@ lab_a825:
     bne lab_a7f4            ;a82f  d0 c3
 
 lab_a831:
-    jmp sub_a65e            ;a831  4c 5e a6
+    jmp sub_a65e_close      ;a831  4c 5e a6   Send CLOSE to IEC
 
 ;Command to change the drive's device number
 mem_a834_m_w:
@@ -1553,7 +1559,7 @@ mem_a83a_dollr_len = 1
 ;Query the device's status and print it
 ;Prints like: "00, OK,00,00"
 sub_a83c_status:
-    jsr sub_a65e            ;a83c  20 5e a6
+    jsr sub_a65e_close      ;a83c  20 5e a6     Send CLOSE to IEC
     jsr sub_a3ad            ;a83f  20 ad a3     Set FA = copy of current IEC device num, set KERNAL STATUS = 0
     jsr sub_a3ef_talk       ;a842  20 ef a3     Send TALK to IEC
     lda #0x6f               ;a845  a9 6f
@@ -1564,8 +1570,8 @@ lab_a84a:
     jsr chrout              ;a84d  20 d2 ff     KERNAL Send a char to the current output device
     cmp #0x0d               ;a850  c9 0d
     bne lab_a84a            ;a852  d0 f6
-    jsr sub_a4e4_untalk     ;a854  20 e4 a4     Send UNTALK to IEC
-    jmp sub_a65e            ;a857  4c 5e a6
+    jsr sub_a4e4_untlk      ;a854  20 e4 a4     Send UNTALK to IEC
+    jmp sub_a65e_close      ;a857  4c 5e a6     Send CLOSE to IEC
 
 ;Compares byte at txtptr with a comma
 sub_a85a_cmp_comma:
