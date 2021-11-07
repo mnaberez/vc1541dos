@@ -22,7 +22,7 @@
     txtptr = 0x77           ;Pointer: Current Byte of BASIC Text
     status = 0x96           ;KERNAL Status Byte, from which ST is computed
     verchk = 0x9d           ;KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
-    mem_00a0 = 0xa0
+    mem_00a0_c3p0 = 0xa0
     bsour = 0xa5            ;IEEE byte buffer for output (FF means no character)
     tapend = 0xab           ;End of tape input flag ***
     ealptr = 0xb7           ;Pointer: end address for SAVE ***
@@ -35,9 +35,9 @@
     fnadr = 0xda            ;Pointer: Start of filename
     prscr = 0xeb            ;Print to screen vector
     ml1ptr = 0xfb           ;Pointer: start of tape address for .S ***
-    mem_00fd = 0xfd
+    mem_00fd_r2d2 = 0xfd
     mem_00fe = 0xfe
-    mem_00ff = 0xff
+    mem_00ff_count = 0xff
     mem_0102 = 0x102
     mem_0103 = 0x103
     mem_01ff = 0x1ff
@@ -90,7 +90,7 @@
     untorl = 0xf0d7         ;KERNAL Send UNTALK or UNLISTEN to IEEE
     ieeout = 0xf109         ;KERNAL Output a byte to IEEE
     second = 0xf143         ;KERNAL Send Secondary Address to IEEE
-    prepar = 0xf148         ;KERNAL Prepare for IEEE Data
+    scatn = 0xf148          ;KERNAL Release ATN on IEEE
     filout = 0xf19e         ;KERNAL Send a byte to file on IEEE
     untlk = 0xf1ae          ;KERNAL Send UNTALK to IEEE
     unlsn = 0xf1b9          ;KERNAL Send UNLISTEN to IEEE
@@ -114,8 +114,8 @@
     jmp ep_a382_untorl          ;a009  4c 82 a3   Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
     jmp ep_a128_open            ;a00c  4c 28 a1   Send OPEN to IEC or IEEE
     jmp ep_a128_close           ;a00f  4c 36 a1   Send CLOSE to IEC or IEEE
-    jmp sub_a141                ;a012  4c 41 a1
-    jmp sub_a306_filout         ;a015  4c 06 a3   Send byte to file on IEC or IEEE
+    jmp sub_a141_acptr          ;a012  4c 41 a1   Input a byte on IEC or IEEE(?) XXX
+    jmp sub_a306_ciout          ;a015  4c 06 a3   Send byte to file on IEC or IEEE
     jmp sub_a314_listen         ;a018  4c 14 a3   Send LISTEN to IEC or IEEE
     jmp sub_a32a_unlsn          ;a01b  4c 2a a3   Send UNLISTEN to IEC or IEEE
     jmp sub_a31f_talk           ;a01e  4c 1f a3   Send TALK to IEC or IEEE
@@ -123,8 +123,8 @@
     jmp lab_a345_second         ;a024  4c 45 a3   Send secondary address to IEC or IEC for LISTEN
     jmp lab_a353_tksa           ;a027  4c 53 a3   Send secondary address to IEC or IEEE for TALK
     jmp sub_a340_lstksa         ;a02a  4c 40 a3   Send secondary address to IEC or IEEE for TALK or LISTEN
-    jmp lab_a361_atn_off        ;a02d  4c 61 a3   Turn ATN off for IEC or IEEE
-    jmp lab_a36c_atn_on         ;a030  4c 6c a3   Turn ATN on for IEC or IEE
+    jmp lab_a361_atnon          ;a02d  4c 61 a3   Assert ATN on IEC or IEEE
+    jmp lab_a36c_scatn          ;a030  4c 6c a3   Release ATN on IEC or IEEE
     jmp lab_a119_jmp_lstksa     ;a033  4c 19 a1   Jumps directly to sub_a340_lstksa
 
 ep_a036_install:
@@ -331,13 +331,14 @@ lab_a13e_not_iec:
     jmp close               ;a13e  4c 2f f7   Send CLOSE to IEC
 
 
-sub_a141:
+;Input a byte on IEC or IEEE (?) adrlow below seems wrong
+sub_a141_acptr:
     jsr sub_a8a0_cmp_fa     ;a141  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a149_not_iec    ;a144  d0 03
-    jmp sub_a507            ;a146  4c 07 a5   Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
+    jmp sub_a507_acptrs     ;a146  4c 07 a5   Input a byte from IEC with initial status check
 
 lab_a149_not_iec:
-    jmp adrlow              ;a149  4c c0 f1
+    jmp adrlow              ;a149  4c c0 f1   XXX seems not correct
 
 
 ;Wedge command !CMD
@@ -365,11 +366,11 @@ lab_a15f_prscr:
     ;It's a carriage return
     bit mem_03ff            ;a165  2c ff 03   Bit with copy of current IEC device number
     bpl lab_a16f_not_cr     ;a168  10 05
-    jsr sub_a306_filout     ;a16a  20 06 a3   Send byte to file on IEC or IEEE
+    jsr sub_a306_ciout     ;a16a  20 06 a3   Send byte to file on IEC or IEEE
     lda #0x0a               ;a16d  a9 0a
 
 lab_a16f_not_cr:
-    jsr sub_a306_filout     ;a16f  20 06 a3   Send byte to file on IEC or IEEE
+    jsr sub_a306_ciout     ;a16f  20 06 a3   Send byte to file on IEC or IEEE
     jmp lab_e787            ;a172  4c 87 e7   EDITOR Default routine for PRSCR vector
 
 
@@ -420,7 +421,7 @@ lab_a1b3:
     cpy fnlen               ;a1b3  c4 d1
     beq lab_a1bf            ;a1b5  f0 08
     lda [mem_001f],y        ;a1b7  b1 1f
-    jsr sub_a306_filout     ;a1b9  20 06 a3     Send byte to file on IEC or IEEE
+    jsr sub_a306_ciout     ;a1b9  20 06 a3     Send byte to file on IEC or IEEE
     iny                     ;a1bc  c8
     bne lab_a1b3            ;a1bd  d0 f4
 
@@ -436,11 +437,11 @@ lab_a1bf:
 ;Not a semicolon or comma
 lab_a1ce_not:
     lda #0x0d               ;a1ce  a9 0d
-    jsr sub_a306_filout     ;a1d0  20 06 a3   Send byte to file on IEC or IEEE
+    jsr sub_a306_ciout      ;a1d0  20 06 a3   Send byte to file on IEC or IEEE
     bit mem_03ff            ;a1d3  2c ff 03   Bit with copy of current IEC device number
     bpl lab_a1dd_done       ;a1d6  10 05
     lda #0x0a               ;a1d8  a9 0a
-    jsr sub_a306_filout     ;a1da  20 06 a3   Send byte to file on IEC or IEEE
+    jsr sub_a306_ciout      ;a1da  20 06 a3   Send byte to file on IEC or IEEE
 
 lab_a1dd_done:
     jmp sub_a32a_unlsn      ;a1dd  4c 2a a3   Send UNLISTEN to IEC or IEEE
@@ -465,7 +466,7 @@ sub_a203:
     ldx #0x00               ;a203  a2 00
 
 lab_a205_loop:
-    jsr sub_a141            ;a205  20 41 a1
+    jsr sub_a141_acptr      ;a205  20 41 a1
     cmp #0x0d               ;a208  c9 0d
     beq lab_a21c            ;a20a  f0 10
     sta mem_0200,x          ;a20c  9d 00 02
@@ -518,7 +519,7 @@ lab_a24b_input_loop:
     bne lab_a285            ;a265  d0 1e
     bit mem_000b            ;a267  24 0b
     bvc lab_a277            ;a269  50 0c
-    jsr sub_a141            ;a26b  20 41 a1
+    jsr sub_a141_acptr      ;a26b  20 41 a1
     sta mem_0200            ;a26e  8d 00 02
     ldx #0xff               ;a271  a2 ff
     ldy #0x01               ;a273  a0 01
@@ -611,12 +612,12 @@ copyright:                  ;a2f7
 
 
 ;Send byte to file on IEC or IEEE
-sub_a306_filout:
+sub_a306_ciout:
     pha                     ;a306  48
     jsr sub_a8a0_cmp_fa     ;a307  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a310_not_iec    ;a30a  d0 04
     pla                     ;a30c  68
-    jmp sub_a4d2_filout     ;a30d  4c d2 a4   Send byte to file on IEC
+    jmp sub_a4d2_ciout      ;a30d  4c d2 a4   Send byte to file on IEC
 
 lab_a310_not_iec:
     pla                     ;a310  68
@@ -674,7 +675,7 @@ lab_a345_second:
     jsr sub_a8a0_cmp_fa     ;a346  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a34f_not_iec    ;a349  d0 04
     pla                     ;a34b  68
-    jmp sub_a49c_second     ;a34c  4c 9c a4   Send secondary address to IEC for LISTEN
+    jmp sub_a49c_secnd     ;a34c  4c 9c a4   Send secondary address to IEC for LISTEN
 
 lab_a34f_not_iec:
     pla                     ;a34f  68
@@ -694,28 +695,30 @@ lab_a35d_not_iec:
     jmp second              ;a35e  4c 43 f1   KERNAL Send Secondary Address to IEEE
 
 
-lab_a361_atn_off:
+;Assert ATN on IEC or IEEE
+lab_a361_atnon:
     jsr sub_a8a0_cmp_fa     ;a361  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a369_not_iec    ;a364  d0 03
-    jmp sub_a4aa_via_pa3_on ;a366  4c aa a4   Turn bit 3 of VIA PORT A on (ATN out)
+    jmp sub_a4aa_atnon      ;a366  4c aa a4   Assert ATN (turns bit 3 of VIA PORT A on)
 
 lab_a369_not_iec:
-    jmp sub_a4b3_via_pb2_off ;a369  4c b3 a4  Turn bit 2 of VIA PORT B off
+    jmp sub_a4b3_ieee_aton  ;a369  4c b3 a4   Assert ATN on IEEE (turns bit 2 of VIA PORT B off)
 
 
-lab_a36c_atn_on:
+;Release ATN on IEC or IEEE
+lab_a36c_scatn:
     jsr sub_a8a0_cmp_fa     ;a36c  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a374_not_iec    ;a36f  d0 03
-    jmp sub_a4a1_via_pa3_on ;a371  4c a1 a4   Prepare for data on IEC (Turn bit 3 of VIA PORT A off) (ATN out)
+    jmp sub_a4a1_scatn      ;a371  4c a1 a4   Release ATN on IEC
 
 lab_a374_not_iec:
-    jmp prepar              ;a374  4c 48 f1
+    jmp scatn               ;a374  4c 48 f1   Release ATN on IEEE
 
 
 ep_a377_ciout:
     jsr sub_a8a0_cmp_fa     ;a377  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a37f_not_iec    ;a37a  d0 03
-    jmp sub_a423            ;a37c  4c 23 a4
+    jmp sub_a423_isour      ;a37c  4c 23 a4
 
 lab_a37f_not_iec:
     jmp ieeout              ;a37f  4c 09 f1   KERNAL Output a byte to IEEE
@@ -746,7 +749,7 @@ sub_a390_setup:
     lda #0x17               ;a3a4  a9 17
     sta via_port_a          ;a3a6  8d 41 e8
     lda #0x80               ;a3a9  a9 80
-    sta mem_00fd            ;a3ab  85 fd
+    sta mem_00fd_r2d2            ;a3ab  85 fd
 
 ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
 sub_a3ad_set_fa_st:
@@ -757,15 +760,15 @@ sub_a3ad_set_fa_st:
     sta status              ;a3b6  85 96        KERNAL STATUS = 0 (no error)
     rts                     ;a3b8  60
 
-;Set clock line high (inverted)
-sub_a3b9_clkhi:
+;Set clock line low (inverted)
+sub_a3b9_clklo:
     lda via_port_a          ;a3b9  ad 41 e8
     ora #0b00010000         ;a3bc  09 10
     sta via_port_a          ;a3be  8d 41 e8
     rts                     ;a3c1  60
 
-;Set clock line low (inverted)
-sub_a3c2_clklo:
+;Set clock line high (inverted)
+sub_a3c2_clkhi:
     lda via_port_a          ;a3c2  ad 41 e8
     and #0b11101111         ;a3c5  29 ef
     sta via_port_a          ;a3c7  8d 41 e8
@@ -815,75 +818,75 @@ sub_a3f2_listen = (. - 2)
 lab_a3f4:
     sta mem_87d0            ;a3f4  8d d0 87
 
-sub_a3f7:
+sub_a3f7_list1:
     ora fa                  ;a3f7  05 d4
     pha                     ;a3f9  48
-    bit mem_00a0            ;a3fa  24 a0
-    bpl lab_a408            ;a3fc  10 0a
+    bit mem_00a0_c3p0            ;a3fa  24 a0
+    bpl lab_a408_list2            ;a3fc  10 0a
     sec                     ;a3fe  38
-    ror mem_00fd            ;a3ff  66 fd
-    jsr sub_a423            ;a401  20 23 a4
-    lsr mem_00a0            ;a404  46 a0
-    lsr mem_00fd            ;a406  46 fd
+    ror mem_00fd_r2d2            ;a3ff  66 fd
+    jsr sub_a423_isour      ;a401  20 23 a4
+    lsr mem_00a0_c3p0            ;a404  46 a0
+    lsr mem_00fd_r2d2            ;a406  46 fd
 
-lab_a408:
+lab_a408_list2:
     pla                     ;a408  68
     sta bsour               ;a409  85 a5      IEEE byte buffer for output (FF means no character)
     sei                     ;a40b  78
     jsr sub_a3cb_datahi     ;a40c  20 cb a3   Set data line high (inverted)
     cmp #0x3f               ;a40f  c9 3f
     bne lab_a416            ;a411  d0 03
-    jsr sub_a3c2_clklo      ;a413  20 c2 a3   Set clock line low (inverted)
+    jsr sub_a3c2_clkhi      ;a413  20 c2 a3   Set clock line high (inverted)
 
 lab_a416:
-    jsr sub_a4aa_via_pa3_on ;a416  20 aa a4   Turn bit 3 of VIA PORT A on (ATN out)
+    jsr sub_a4aa_atnon      ;a416  20 aa a4   Assert ATN (turns bit 3 of VIA PORT A on)
 
-sub_a419:
+sub_a419_isoura:
     sei                     ;a419  78
-    jsr sub_a3b9_clkhi      ;a41a  20 b9 a3   Set clock line high (inverted)
+    jsr sub_a3b9_clklo      ;a41a  20 b9 a3   Set clock line low (inverted)
     jsr sub_a3cb_datahi     ;a41d  20 cb a3   Set data line high (inverted)
     jsr sub_a3e7_delay      ;a420  20 e7 a3   Delay loop
 
-sub_a423:
+sub_a423_isour:
     sei                     ;a423  78
     jsr sub_a3cb_datahi     ;a424  20 cb a3   Set data line high (inverted)
     jsr sub_a3dd_debvia     ;a427  20 dd a3   Debounce VIA PA then ASL A
-    bcs lab_a490_not_pres   ;a42a  b0 64      Branch to device not present error
-    jsr sub_a3c2_clklo      ;a42c  20 c2 a3   Set clock line low (inverted)
-    bit mem_00fd            ;a42f  24 fd
-    bpl lab_a43d            ;a431  10 0a
+    bcs lab_a490_nodev      ;a42a  b0 64      Branch to device not present error
+    jsr sub_a3c2_clkhi      ;a42c  20 c2 a3   Set clock line high (inverted)
+    bit mem_00fd_r2d2       ;a42f  24 fd
+    bpl lab_a43d_noeoi      ;a431  10 0a
 
-lab_a433:
+lab_a433_isr02:
     jsr sub_a3dd_debvia     ;a433  20 dd a3   Debounce VIA PA then ASL A
-    bcc lab_a433            ;a436  90 fb
+    bcc lab_a433_isr02      ;a436  90 fb
 
-lab_a438:
+lab_a438_isr03:
     jsr sub_a3dd_debvia     ;a438  20 dd a3   Debounce VIA PA then ASL A
-    bcs lab_a438            ;a43b  b0 fb
+    bcs lab_a438_isr03      ;a43b  b0 fb
 
-lab_a43d:
+lab_a43d_noeoi:
     jsr sub_a3dd_debvia     ;a43d  20 dd a3   Debounce VIA PA then ASL A
-    bcc lab_a43d            ;a440  90 fb
-    jsr sub_a3b9_clkhi      ;a442  20 b9 a3   Set clock line high (inverted)
+    bcc lab_a43d_noeoi      ;a440  90 fb
+    jsr sub_a3b9_clklo      ;a442  20 b9 a3   Set clock line low (inverted)
     lda #0x08               ;a445  a9 08
-    sta mem_00ff            ;a447  85 ff
+    sta mem_00ff_count            ;a447  85 ff
 
-lab_a449:
+lab_a449_isr01:
     lda via_port_a          ;a449  ad 41 e8
     cmp via_port_a          ;a44c  cd 41 e8
-    bne lab_a449            ;a44f  d0 f8
+    bne lab_a449_isr01      ;a44f  d0 f8
     asl a                   ;a451  0a
-    bcc lab_a493_wr_tmo     ;a452  90 3f
+    bcc lab_a493_frmerr     ;a452  90 3f    XXX C64 KERNAL says frame error
     ror bsour               ;a454  66 a5      IEEE byte buffer for output (FF means no character)
-    bcs lab_a45d            ;a456  b0 05
+    bcs lab_a45d_isrhi      ;a456  b0 05
     jsr sub_a3d4_datalo     ;a458  20 d4 a3   Set data line low (inverted)
     bne lab_a460            ;a45b  d0 03
 
-lab_a45d:
+lab_a45d_isrhi:
     jsr sub_a3cb_datahi     ;a45d  20 cb a3   Set data line high (inverted)
 
 lab_a460:
-    jsr sub_a3c2_clklo      ;a460  20 c2 a3   Set clock line low (inverted)
+    jsr sub_a3c2_clkhi      ;a460  20 c2 a3   Set clock line high (inverted)
     nop                     ;a463  ea
     nop                     ;a464  ea
     nop                     ;a465  ea
@@ -892,57 +895,59 @@ lab_a460:
     and #0xdf               ;a46a  29 df
     ora #0x10               ;a46c  09 10
     sta via_port_a          ;a46e  8d 41 e8
-    dec mem_00ff            ;a471  c6 ff
-    bne lab_a449            ;a473  d0 d4
+    dec mem_00ff_count      ;a471  c6 ff
+    bne lab_a449_isr01      ;a473  d0 d4
     lda #0x00               ;a475  a9 00
     sta via_timer_2_lo      ;a477  8d 48 e8
     lda #0x04               ;a47a  a9 04
     sta via_timer_2_hi      ;a47c  8d 49 e8
     lda via_ifr             ;a47f  ad 4d e8
 
-lab_a482:
+lab_a482_isr04:
     lda via_ifr             ;a482  ad 4d e8
-    and #0x20               ;a485  29 20
-    bne lab_a493_wr_tmo     ;a487  d0 0a      Branch to write timeout error
+    and #0x20               ;a485  29 20      XXX does not match C64 KERNAL
+    bne lab_a493_frmerr     ;a487  d0 0a      Branch to write timeout error
     jsr sub_a3dd_debvia     ;a489  20 dd a3   Debounce VIA PA then ASL A
-    bcs lab_a482            ;a48c  b0 f4
+    bcs lab_a482_isr04      ;a48c  b0 f4
     cli                     ;a48e  58
     rts                     ;a48f  60
 
-lab_a490_not_pres:
+lab_a490_nodev:
     lda #0b10000000         ;a490  a9 80      A = status bit for device not present error
-    bit 0x03a9              ;a492  2c a9 03   lab_a449, lab_a482 jump here mid-instruction
-lab_a493_wr_tmo = (. - 2)
-   ;lda #0b00000011         ;a492  __ a9 03   A = status bits for timeout while writing
+    bit 0x03a9              ;a492  2c a9 03   lab_a449_isr01, lab_a482_isr04 jump here mid-instruction
+lab_a493_frmerr = (. - 2)
+   ;lda #0b00000011         ;a492  __ a9 03   A = status bits for timeout while writing XXX
 
-lab_a495_error:
+lab_a495_csberr:
     jsr sub_a580_st_or_a    ;a495  20 80 a5   KERNAL STATUS = STATUS | A
     cli                     ;a498  58
     clc                     ;a499  18
-    bcc lab_a4f3            ;a49a  90 57      Branch always
+    bcc lab_a4f3_dlabye            ;a49a  90 57      Branch always
 
 ;Send secondary address to IEC for LISTEN
-sub_a49c_second:
+sub_a49c_secnd:
     sta bsour               ;a49c  85 a5
-    jsr sub_a419            ;a49e  20 19 a4
+    jsr sub_a419_isoura     ;a49e  20 19 a4
 
-;Prepare for data on IEC (Turn bit 3 of VIA PORT A off) (ATN out)
-sub_a4a1_via_pa3_on:
+;Release ATN
+sub_a4a1_scatn:
     lda via_port_a          ;a4a1  ad 41 e8
     and #0b11110111         ;a4a4  29 f7
     sta via_port_a          ;a4a6  8d 41 e8
     rts                     ;a4a9  60
 
+;Assert ATN
+;Note: this routine does not exist in the C64 KERNAL
 ;Turn bit 3 of VIA PORT A on (ATN out)
-sub_a4aa_via_pa3_on:
+sub_a4aa_atnon:
     lda via_port_a          ;a4aa  ad 41 e8
     ora #0b00001000         ;a4ad  09 08
     sta via_port_a          ;a4af  8d 41 e8
     rts                     ;a4b2  60
 
-;Turn bit 2 of VIA PORT B off
-sub_a4b3_via_pb2_off:
-    lda via_portb           ;a4b3  ad 40 e8
+;Assert ATN on IEEE (turns bit 2 of VIA PORT B off)
+sub_a4b3_ieee_aton:
+    lda via_portb           ;a4b3  ad 40 e8   Note: IEEE-488, not IEC!
     and #0b11111011         ;a4b6  29 fb
     sta via_portb           ;a4b8  8d 40 e8
     rts                     ;a4bb  60
@@ -950,32 +955,33 @@ sub_a4b3_via_pb2_off:
 ;Send secondary address to an IEC device commanded to talk
 sub_a4bc_tksa:
     sta bsour               ;a4bc  85 a5
-    jsr sub_a419            ;a4be  20 19 a4
+    jsr sub_a419_isoura     ;a4be  20 19 a4
     sei                     ;a4c1  78
     jsr sub_a3d4_datalo     ;a4c2  20 d4 a3   Set data line low (inverted)
-    jsr sub_a4a1_via_pa3_on ;a4c5  20 a1 a4   Prepare for data on IEC (Turn bit 3 of VIA PORT A off) (ATN out)
-    jsr sub_a3c2_clklo      ;a4c8  20 c2 a3   Set clock line low (inverted)
+    jsr sub_a4a1_scatn      ;a4c5  20 a1 a4   Release ATN
+    jsr sub_a3c2_clkhi      ;a4c8  20 c2 a3   Set clock line high (inverted)
 
-lab_a4cb:
+lab_a4cb_tkatn1:
     jsr sub_a3dd_debvia     ;a4cb  20 dd a3   Debounce VIA PA then ASL A
-    bmi lab_a4cb            ;a4ce  30 fb
+    bmi lab_a4cb_tkatn1     ;a4ce  30 fb
     cli                     ;a4d0  58
     rts                     ;a4d1  60
 
-;Send byte to file on IEC
-sub_a4d2_filout:
-    bit mem_00a0            ;a4d2  24 a0
-    bmi lab_a4db            ;a4d4  30 05
+;Buffered output to IEC
+;TODO update comments in callers
+sub_a4d2_ciout:
+    bit mem_00a0_c3p0       ;a4d2  24 a0
+    bmi lab_a4db_ci2        ;a4d4  30 05
     sec                     ;a4d6  38
-    ror mem_00a0            ;a4d7  66 a0
-    bne lab_a4e0            ;a4d9  d0 05
+    ror mem_00a0_c3p0       ;a4d7  66 a0
+    bne lab_a4e0_ci4        ;a4d9  d0 05
 
-lab_a4db:
+lab_a4db_ci2:
     pha                     ;a4db  48
-    jsr sub_a423            ;a4dc  20 23 a4
+    jsr sub_a423_isour      ;a4dc  20 23 a4
     pla                     ;a4df  68
 
-lab_a4e0:
+lab_a4e0_ci4:
     sta bsour               ;a4e0  85 a5
     clc                     ;a4e2  18
     rts                     ;a4e3  60
@@ -983,44 +989,47 @@ lab_a4e0:
 ;Send UNTALK to IEC
 sub_a4e4_untlk:
     sei                     ;a4e4  78
-    jsr sub_a3b9_clkhi      ;a4e5  20 b9 a3   Set clock line high (inverted)
-    jsr sub_a4aa_via_pa3_on ;a4e8  20 aa a4   Turn bit 3 of VIA PORT A on (ATN out)
+    jsr sub_a3b9_clklo      ;a4e5  20 b9 a3   Set clock line low (inverted)
+    jsr sub_a4aa_atnon      ;a4e8  20 aa a4   Assert ATN (turns bit 3 of VIA PORT A on)
     lda #0x5f               ;a4eb  a9 5f      A = 0x5F (UNTALK)
     bit 0x3fa9              ;a4ed  2c a9 3f   some routines jump here mid-instruction
 
 ;Send UNLISTEN to IEC
 sub_a4ef_unlsn = (. - 2)
    ;lda #0x3f               ;a4ed  __ a9 ef   A = 0x3F (UNLISTEN)
-    jsr sub_a3f7            ;a4f0  20 f7 a3
+    jsr sub_a3f7_list1      ;a4f0  20 f7 a3
 
-lab_a4f3:
-    jsr sub_a4a1_via_pa3_on ;a4f3  20 a1 a4   Prepare for data on IEC (Turn bit 3 of VIA PORT A off) (ATN out)
+lab_a4f3_dlabye:
+    jsr sub_a4a1_scatn      ;a4f3  20 a1 a4   Release ATN
 
-sub_a4f6:
+sub_a4f6_dladlh:
     txa                     ;a4f6  8a
     ldx #0x0a               ;a4f7  a2 0a
 
-lab_a4f9:
+lab_a4f9_dlad00:
     dex                     ;a4f9  ca
-    bne lab_a4f9            ;a4fa  d0 fd
+    bne lab_a4f9_dlad00     ;a4fa  d0 fd
     tax                     ;a4fc  aa
-    jsr sub_a3c2_clklo      ;a4fd  20 c2 a3   Set clock line low (inverted)
+    jsr sub_a3c2_clkhi      ;a4fd  20 c2 a3   Set clock line high (inverted)
     lda #0x00               ;a500  a9 00
-    sta mem_00a0            ;a502  85 a0
+    sta mem_00a0_c3p0       ;a502  85 a0
     jmp sub_a3cb_datahi     ;a504  4c cb a3   Set data line high (inverted)
 
-;Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
-sub_a507:
+;Input a byte from IEC with initial status check
+;This is different from the C64 KERNAL
+sub_a507_acptrs:
     lda status              ;a507  a5 96
-    beq lab_a50e            ;a509  f0 03
+    beq sub_a50e_acptr      ;a509  f0 03
     lda #0x0d               ;a50b  a9 0d
     rts                     ;a50d  60
 
-lab_a50e:
+;Input a byte from IEC
+;This is from the C64 KERNAL
+sub_a50e_acptr:
     sei                     ;a50e  78
     lda #0x00               ;a50f  a9 00
-    sta mem_00ff            ;a511  85 ff
-    jsr sub_a3c2_clklo      ;a513  20 c2 a3   Set clock line low (inverted)
+    sta mem_00ff_count      ;a511  85 ff
+    jsr sub_a3c2_clkhi      ;a513  20 c2 a3   Set clock line high (inverted)
 
 lab_a516:
     jsr sub_a3dd_debvia     ;a516  20 dd a3   Debounce VIA PA then ASL A
@@ -1043,22 +1052,22 @@ lab_a52b:
     bpl lab_a551            ;a537  10 18
 
 lab_a539:
-    lda mem_00ff            ;a539  a5 ff
+    lda mem_00ff_count            ;a539  a5 ff
     beq lab_a542            ;a53b  f0 05
     lda #0b00000010         ;a53d  a9 02      A = status bit for timeout error
-    jmp lab_a495_error      ;a53f  4c 95 a4
+    jmp lab_a495_csberr      ;a53f  4c 95 a4
 
 lab_a542:
     jsr sub_a3d4_datalo     ;a542  20 d4 a3   Set data line low (inverted)
-    jsr sub_a3c2_clklo      ;a545  20 c2 a3   Set clock line low (inverted)
+    jsr sub_a3c2_clkhi      ;a545  20 c2 a3   Set clock line high (inverted)
     lda #0b01000000         ;a548  a9 40      A = status bit for End of File (EOF)
     jsr sub_a580_st_or_a    ;a54a  20 80 a5   KERNAL STATUS = STATUS | A
-    inc mem_00ff            ;a54d  e6 ff
+    inc mem_00ff_count            ;a54d  e6 ff
     bne lab_a51b            ;a54f  d0 ca
 
 lab_a551:
     lda #0x08               ;a551  a9 08
-    sta mem_00ff            ;a553  85 ff
+    sta mem_00ff_count            ;a553  85 ff
 
 lab_a555:
     lda via_port_a          ;a555  ad 41 e8
@@ -1074,12 +1083,12 @@ lab_a562:
     bne lab_a562            ;a568  d0 f8
     asl a                   ;a56a  0a
     bmi lab_a562            ;a56b  30 f5
-    dec mem_00ff            ;a56d  c6 ff
+    dec mem_00ff_count            ;a56d  c6 ff
     bne lab_a555            ;a56f  d0 e4
     jsr sub_a3d4_datalo     ;a571  20 d4 a3   Set data line low (inverted)
     bit status              ;a574  24 96
     bvc lab_a57b            ;a576  50 03
-    jsr sub_a4f6            ;a578  20 f6 a4
+    jsr sub_a4f6_dladlh            ;a578  20 f6 a4
 
 lab_a57b:
     lda mem_00fe            ;a57b  a5 fe
@@ -1163,12 +1172,12 @@ lab_a5ca_send_dos_cmd:
     sta status              ;a5cc  85 96        KERNAL STATUS = 0 (no error)
     jsr sub_a3f2_listen     ;a5ce  20 f2 a3     Send LISTEN to IEC
     lda #0x6f               ;a5d1  a9 6f
-    jsr sub_a49c_second     ;a5d3  20 9c a4     Send secondary address to IEC for LISTEN
+    jsr sub_a49c_secnd     ;a5d3  20 9c a4     Send secondary address to IEC for LISTEN
     ldy #0x00               ;a5d6  a0 00
 
 lab_a5d8:
     lda [mem_001f],y        ;a5d8  b1 1f
-    jsr sub_a4d2_filout     ;a5da  20 d2 a4     Send byte to file on IEC
+    jsr sub_a4d2_ciout     ;a5da  20 d2 a4     Send byte to file on IEC
     iny                     ;a5dd  c8
     cpy fnlen               ;a5de  c4 d1
     bne lab_a5d8            ;a5e0  d0 f6
@@ -1226,18 +1235,18 @@ lab_a623_no_addr:
 lab_a633_with_addr:
     jsr sub_a3f2_listen     ;a633  20 f2 a3     Send LISTEN to IEC
     lda sa                  ;a636  a5 d3        A = KERNAL current secondary address
-    jsr sub_a49c_second     ;a638  20 9c a4     Send secondary address to IEC for LISTEN
+    jsr sub_a49c_secnd     ;a638  20 9c a4     Send secondary address to IEC for LISTEN
     ldy #0x00               ;a63b  a0 00
     lda salptr              ;a63d  a5 c9
-    jsr sub_a4d2_filout     ;a63f  20 d2 a4     Send byte to file on IEC
+    jsr sub_a4d2_ciout     ;a63f  20 d2 a4     Send byte to file on IEC
     lda salptr+1            ;a642  a5 ca
-    jsr sub_a4d2_filout     ;a644  20 d2 a4     Send byte to file on IEC
+    jsr sub_a4d2_ciout     ;a644  20 d2 a4     Send byte to file on IEC
 
 lab_a647:
     jsr sub_a672            ;a647  20 72 a6
     bcs lab_a65b            ;a64a  b0 0f
     lda [salptr],y          ;a64c  b1 c9
-    jsr sub_a4d2_filout     ;a64e  20 d2 a4     Send byte to file on IEC
+    jsr sub_a4d2_ciout     ;a64e  20 d2 a4     Send byte to file on IEC
     jsr sub_a89a            ;a651  20 9a a8
     beq lab_a65b            ;a654  f0 05
     jsr sub_a682            ;a656  20 82 a6
@@ -1254,7 +1263,7 @@ sub_a65e_close:
     lda sa                  ;a665  a5 d3        A = KERNAL current secondary address
     and #0xef               ;a667  29 ef
     ora #0xe0               ;a669  09 e0        OR with 0xE0 = CLOSE
-    jsr sub_a49c_second     ;a66b  20 9c a4     Send secondary address to IEC for LISTEN
+    jsr sub_a49c_secnd     ;a66b  20 9c a4     Send secondary address to IEC for LISTEN
     jsr sub_a4ef_unlsn      ;a66e  20 ee a4     Send UNLISTEN to IEC
 
 lab_a671_done:
@@ -1299,7 +1308,7 @@ lab_a68f:
     jsr sub_a3f2_listen     ;a697  20 f2 a3   Send LISTEN to IEC
     lda sa                  ;a69a  a5 d3      A = KERNAL current secondary address
     ora #0xf0               ;a69c  09 f0      OR it with 0xF0 = OPEN
-    jsr sub_a49c_second     ;a69e  20 9c a4   Send secondary address to IEC for LISTEN
+    jsr sub_a49c_secnd     ;a69e  20 9c a4   Send secondary address to IEC for LISTEN
     lda status              ;a6a1  a5 96      A = KERNAL status
     bpl lab_a6a8_present    ;a6a3  10 03      Branch if device not present error bit = 0
     ;device not present
@@ -1311,7 +1320,7 @@ lab_a6a8_present:
 
 lab_a6aa:
     lda [fnadr],y           ;a6aa  b1 da
-    jsr sub_a4d2_filout     ;a6ac  20 d2 a4   Send byte to file on IEC
+    jsr sub_a4d2_ciout     ;a6ac  20 d2 a4   Send byte to file on IEC
     iny                     ;a6af  c8
     cpy fnlen               ;a6b0  c4 d1
     bne lab_a6aa            ;a6b2  d0 f6
@@ -1371,7 +1380,7 @@ lab_a6ff:
     jsr sub_a3ef_talk       ;a709  20 ef a3   Send TALK to IEC
     lda sa                  ;a70c  a5 d3      A = KERNAL current secondary address
     jsr sub_a4bc_tksa       ;a70e  20 bc a4   Send secondary address to an IEC device commanded to talk
-    jsr sub_a507            ;a711  20 07 a5   Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
+    jsr sub_a507_acptrs     ;a711  20 07 a5   Input a byte from IEC with initial status check
     sta salptr              ;a714  85 c9
     lda status              ;a716  a5 96
     lsr a                   ;a718  4a
@@ -1381,7 +1390,7 @@ lab_a6ff:
 
 lab_a71f:
     jsr lodmsg              ;a71f  20 6d f4   KERNAL Print LOADING or VERIFYING if in direct mode
-    jsr sub_a507            ;a722  20 07 a5   Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
+    jsr sub_a507_acptrs     ;a722  20 07 a5   Input a byte from IEC with initial status check
     sta salptr+1            ;a725  85 ca
     jsr sub_a85a_cmp_comma  ;a727  20 5a a8   Gets byte at txtptr+0 into A, compares it to a comma
     bne lab_a73e_not_comma  ;a72a  d0 12
@@ -1416,7 +1425,7 @@ lab_a750:
     jmp sub_a65e_close      ;a75b  4c 5e a6     Send CLOSE to IEC
 
 lab_a75e:
-    jsr sub_a507            ;a75e  20 07 a5     Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
+    jsr sub_a507_acptrs     ;a75e  20 07 a5     Input a byte from IEC with initial status check
     tax                     ;a761  aa
     lda status              ;a762  a5 96
     lsr a                   ;a764  4a
@@ -1513,24 +1522,24 @@ lab_a7e1_fname:
     ldy #0x03               ;a7f2  a0 03
 
 lab_a7f4:
-    sty salptr            ;a7f4  84 c9
-    jsr sub_a507            ;a7f6  20 07 a5   Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
-    sta salptr+1          ;a7f9  85 ca
+    sty salptr              ;a7f4  84 c9
+    jsr sub_a507_acptrs     ;a7f6  20 07 a5   Input a byte from IEC with initial status check
+    sta salptr+1            ;a7f9  85 ca
     ldy status              ;a7fb  a4 96
     bne lab_a831            ;a7fd  d0 32
-    jsr sub_a507            ;a7ff  20 07 a5   Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
+    jsr sub_a507_acptrs     ;a7ff  20 07 a5   Input a byte from IEC with initial status check
     ldy status              ;a802  a4 96
     bne lab_a831            ;a804  d0 2b
-    ldy salptr            ;a806  a4 c9
+    ldy salptr              ;a806  a4 c9
     dey                     ;a808  88
     bne lab_a7f4            ;a809  d0 e9
-    ldx salptr+1          ;a80b  a6 ca
+    ldx salptr+1            ;a80b  a6 ca
     jsr sub_cf83            ;a80d  20 83 cf
     lda #0x20               ;a810  a9 20
     jsr chrout              ;a812  20 d2 ff   KERNAL Send a char to the current output device
 
 lab_a815:
-    jsr sub_a507            ;a815  20 07 a5   Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
+    jsr sub_a507_acptrs     ;a815  20 07 a5   Input a byte from IEC with initial status check
     ldx status              ;a818  a6 96
     bne lab_a831            ;a81a  d0 15
     tax                     ;a81c  aa
@@ -1571,7 +1580,7 @@ sub_a83c_status:
     jsr sub_a4bc_tksa       ;a847  20 bc a4     Send secondary address to an IEC device commanded to talk
 
 lab_a84a:
-    jsr sub_a507            ;a84a  20 07 a5     Check STATUS, if 0 do IEC stuff, otherwise return A=0x0D
+    jsr sub_a507_acptrs     ;a84a  20 07 a5     Input a byte from IEC with initial status check
     jsr chrout              ;a84d  20 d2 ff     KERNAL Send a char to the current output device
     cmp #0x0d               ;a850  c9 0d
     bne lab_a84a            ;a852  d0 f6
