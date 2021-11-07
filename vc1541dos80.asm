@@ -46,34 +46,33 @@
     mem_03ff = 0x3ff        ;Copy of current IEC device number
     mem_87d0 = 0x87d0
 
-    error = 0xb3cf          ;BASIC Print error message offset by X in msgs table and return to prompt
     rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
+    error = 0xb3cf          ;BASIC Print error message offset by X in msgs table and return to prompt
+    lab_b4ad = 0xb4ad
     sub_b965 = 0xb965
     prstr = 0xbb1d          ;BASIC Print null-terminated string at A=addr low, Y=addr hi
-    sub_bb44 = 0xbb44
-    lab_b4ad = 0xb4ad
+    defdev = 0xbb44         ;BASIC Restore default devices
     restor = 0xb7b7         ;BASIC Perform RESTORE
     frmevl = 0xbd98         ;BASIC Input and evaluate any expression
-    ptrget = 0xc12b         ;BASIC Find a variable
-    list = 0xc5b5           ;BASIC Perform list; full check of parameters, incl. -
-    sub_c918 = 0xc918
-    fin = 0xce29            ;BASIC Convert an ASCII string into a numeral in FPAcc #1
-    freestr = 0xc7b5        ;Discard temporary string
-    lab_bf00 = 0xbf00
-    hexit = 0xd78d          ;Monitor Evaluate char in A to a hex nibble
+    syntax = 0xbf00         ;BASIC ?SYNTAX ERROR
     sub_b94d = 0xb94d
     lab_bb4c = 0xbb4c
     sub_bcda = 0xbcda
-    iscoma = 0xbef5         ;BASIC Does CHRGET point to a comma?  Syntax Error if not
-    isaequ = 0xbef7         ;BASIC Does CHRGET point to the same byte as in A?  Syntax Error if not
+    iscoma = 0xbef5         ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
+    isaequ = 0xbef7         ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
+    ptrget = 0xc12b         ;BASIC Find a variable
     sub_c5b0 = 0xc5b0
-    gtbytc   = 0xc8d1       ;BASIC Evaluate an expr for 1-byte param (0-255), return in X
+    list = 0xc5b5           ;BASIC Perform list; full check of parameters, incl. -
+    freestr = 0xc7b5        ;BASIC Discard temporary string
+    gtbytc = 0xc8d1         ;BASIC Evaluate an expr for 1-byte param (0-255), return in X
+    wtxtptr = 0xc918        ;BASIC Copy FBUFPT (0x006E) to TXTPTR (0x0077)
+    fin = 0xce29            ;BASIC Convert an ASCII string into a numeral in FPAcc #1
     sub_cf83 = 0xcf83
     sub_cf93 = 0xcf93
-    prcrlf = 0xd534         ;BASIC Print carriage return and linefeed
-    lab_f5b7 = 0xf5b7
-    sub_d717 = 0xd717
     sub_d52e = 0xd52e
+    sub_d717 = 0xd717
+    prcrlf = 0xd534         ;BASIC Print carriage return and linefeed
+    hexit = 0xd78d          ;MONITOR Evaluate char in A to a hex nibble
     lab_e787 = 0xe787       ;EDITOR Default routine for PRSCR vector
 
     pia1_portb = 0xe812     ;PIA 1 Port B
@@ -88,34 +87,35 @@
     talk = 0xf0d2           ;KERNAL Send TALK to IEEE
     listen = 0xf0d5         ;KERNAL Send LISTEN to IEEE
     untorl = 0xf0d7         ;KERNAL Send UNTALK or UNLISTEN to IEEE
-    ieeout = 0xf109         ;KERNAL Output a byte to IEEE
+    isour = 0xf109          ;KERNAL Send last byte to IEEE
     second = 0xf143         ;KERNAL Send Secondary Address to IEEE
     scatn = 0xf148          ;KERNAL Release ATN on IEEE
-    filout = 0xf19e         ;KERNAL Send a byte to file on IEEE
+    ciout = 0xf19e          ;KERNAL Send a byte to file on IEEE
     untlk = 0xf1ae          ;KERNAL Send UNTALK to IEEE
     unlsn = 0xf1b9          ;KERNAL Send UNLISTEN to IEEE
-    adrlow = 0xf1c0         ;KERNAL Get low byte of address
-    chrout = 0xffd2         ;KERNAL Send a char to the current output device
+    acptr = 0xf1c0          ;KERNAL Read a byte from IEEE
     lodmsg = 0xf46d         ;KERNAL Print LOADING or VERIFYING if in direct mode
-    notfnd = 0xf5ad         ;KERNAL Print ?FILE NOT FOUND
+    notfnd = 0xf5ad         ;KERNAL ?FILE NOT FOUND ERROR
     prmsg = 0xf349          ;KERNAL Print a message from 0xF000 table at offset Y
-    resbas = 0xf351         ;KERNAL Reset BASIC execution to start, clear, and chain
+    is7802 = 0xf351         ;KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
     srchng = 0xf449         ;KERNAL Print SEARCHING if in direct mode
-    nprsnt = 0xf4bb         ;KERNAL Print ?DEVICE NOT PRESENT error
     open = 0xf4a5           ;KERNAL Send OPEN to IEEE
+    nprsnt = 0xf4bb         ;KERNAL ?DEVICE NOT PRESENT ERROR
+    krnerr = 0xf5b7         ;KERNAL ?<message> ERROR from KERNAL error in Y
     close = 0xf72f          ;KERNAL Send CLOSE to IEEE
     stop = 0xf92b           ;KERNAL Test STOP key and act if pressed
+    chrout = 0xffd2         ;KERNAL Send a char to the current output device
 
     ;Entry points at the beginning of the ROM
 
     jmp ep_a036_install         ;a000  4c 36 a0   Install the wedge with CHRGET patch
     jmp ep_a09c_wedge_cmd       ;a003  4c 9c a0   Perform wedge command at txtptr+0
-    jmp ep_a377_ciout           ;a006  4c 77 a3   Send a byte to IEC or IEEE
+    jmp ep_a377_isour           ;a006  4c 77 a3   Send a byte to IEC or IEEE
     jmp ep_a382_untorl          ;a009  4c 82 a3   Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
     jmp ep_a128_open            ;a00c  4c 28 a1   Send OPEN to IEC or IEEE
     jmp ep_a128_close           ;a00f  4c 36 a1   Send CLOSE to IEC or IEEE
-    jmp sub_a141_acptr          ;a012  4c 41 a1   Input a byte on IEC or IEEE(?) XXX
-    jmp sub_a306_ciout          ;a015  4c 06 a3   Send byte to file on IEC or IEEE
+    jmp sub_a141_acptr          ;a012  4c 41 a1   Read a byte from IEC or IEEE
+    jmp sub_a306_ciout          ;a015  4c 06 a3   Send a byte on IEC or IEEE
     jmp sub_a314_listen         ;a018  4c 14 a3   Send LISTEN to IEC or IEEE
     jmp sub_a32a_unlsn          ;a01b  4c 2a a3   Send UNLISTEN to IEC or IEEE
     jmp sub_a31f_talk           ;a01e  4c 1f a3   Send TALK to IEC or IEEE
@@ -297,7 +297,7 @@ lab_a119_jmp_lstksa:
 lab_a11c_cmd_open:
     jsr sub_a390_setup      ;a11c  20 90 a3     Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
     jsr sub_a8a8_parse_sa_1 ;a11f  20 a8 a8     Parse integer into SA with leading # sign, or Syntax Error
-    jsr iscoma              ;a122  20 f5 be     BASIC Does CHRGET point to a comma?  Syntax Error if not
+    jsr iscoma              ;a122  20 f5 be     BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a7b6_eval_fname ;a125  20 b6 a7     Evaluate expression as filename; set up FNLEN and FNADR
     ;Fall through
 
@@ -331,14 +331,14 @@ lab_a13e_not_iec:
     jmp close               ;a13e  4c 2f f7   Send CLOSE to IEC
 
 
-;Input a byte on IEC or IEEE (?) adrlow below seems wrong
+;Read a byte from IEC or IEEE
 sub_a141_acptr:
     jsr sub_a8a0_cmp_fa     ;a141  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a149_not_iec    ;a144  d0 03
-    jmp sub_a507_acptrs     ;a146  4c 07 a5   Input a byte from IEC with initial status check
+    jmp sub_a507_acptrs     ;a146  4c 07 a5   Read a byte from IEC with initial status check
 
 lab_a149_not_iec:
-    jmp adrlow              ;a149  4c c0 f1   XXX seems not correct
+    jmp acptr              ;a149  4c c0 f1   XXX seems not correct
 
 
 ;Wedge command !CMD
@@ -366,11 +366,11 @@ lab_a15f_prscr:
     ;It's a carriage return
     bit mem_03ff            ;a165  2c ff 03   Bit with copy of current IEC device number
     bpl lab_a16f_not_cr     ;a168  10 05
-    jsr sub_a306_ciout     ;a16a  20 06 a3   Send byte to file on IEC or IEEE
+    jsr sub_a306_ciout     ;a16a  20 06 a3   Send a byte on IEC or IEEE
     lda #0x0a               ;a16d  a9 0a
 
 lab_a16f_not_cr:
-    jsr sub_a306_ciout     ;a16f  20 06 a3   Send byte to file on IEC or IEEE
+    jsr sub_a306_ciout     ;a16f  20 06 a3   Send a byte on IEC or IEEE
     jmp lab_e787            ;a172  4c 87 e7   EDITOR Default routine for PRSCR vector
 
 
@@ -421,7 +421,7 @@ lab_a1b3:
     cpy fnlen               ;a1b3  c4 d1
     beq lab_a1bf            ;a1b5  f0 08
     lda [mem_001f],y        ;a1b7  b1 1f
-    jsr sub_a306_ciout     ;a1b9  20 06 a3     Send byte to file on IEC or IEEE
+    jsr sub_a306_ciout     ;a1b9  20 06 a3     Send a byte on IEC or IEEE
     iny                     ;a1bc  c8
     bne lab_a1b3            ;a1bd  d0 f4
 
@@ -437,18 +437,18 @@ lab_a1bf:
 ;Not a semicolon or comma
 lab_a1ce_not:
     lda #0x0d               ;a1ce  a9 0d
-    jsr sub_a306_ciout      ;a1d0  20 06 a3   Send byte to file on IEC or IEEE
+    jsr sub_a306_ciout      ;a1d0  20 06 a3   Send a byte on IEC or IEEE
     bit mem_03ff            ;a1d3  2c ff 03   Bit with copy of current IEC device number
     bpl lab_a1dd_done       ;a1d6  10 05
     lda #0x0a               ;a1d8  a9 0a
-    jsr sub_a306_ciout      ;a1da  20 06 a3   Send byte to file on IEC or IEEE
+    jsr sub_a306_ciout      ;a1da  20 06 a3   Send a byte on IEC or IEEE
 
 lab_a1dd_done:
     jmp sub_a32a_unlsn      ;a1dd  4c 2a a3   Send UNLISTEN to IEC or IEEE
 
 lab_a1e0_cmd_get:
     jsr sub_a8a8_parse_sa_1 ;a1e0  20 a8 a8   Parse integer into SA with leading # sign, or Syntax Error
-    jsr iscoma              ;a1e3  20 f5 be   BASIC Does CHRGET point to a comma?  Syntax Error if not
+    jsr iscoma              ;a1e3  20 f5 be   BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     lda mem_03ff            ;a1e6  ad ff 03   A = copy of current IEC device number
     and #0x7f               ;a1e9  29 7f
     sta mem_0010            ;a1eb  85 10
@@ -486,7 +486,7 @@ lab_a21c:
 
 lab_a226_cmd_input:
     jsr sub_a8ad_parse_sa_2 ;a226  20 ad a8   Parse integer into SA without leading #, or Syntax Error
-    jsr iscoma              ;a229  20 f5 be   BASIC Does CHRGET point to a comma?  Syntax Error if not
+    jsr iscoma              ;a229  20 f5 be   BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a31f_talk       ;a22c  20 1f a3   Send TALK to IEC or IEEE
     lda sa                  ;a22f  a5 d3      A = KERNAL current secondary address
     jsr sub_a340_lstksa     ;a231  20 40 a3   Send secondary address to IEC or IEEE for TALK or LISTEN
@@ -528,7 +528,7 @@ lab_a24b_input_loop:
 lab_a277:
     lda mem_0010            ;a277  a5 10
     bne lab_a27e            ;a279  d0 03
-    jsr sub_bb44            ;a27b  20 44 bb
+    jsr defdev              ;a27b  20 44 bb
 
 lab_a27e:
     jsr sub_a203            ;a27e  20 03 a2
@@ -570,7 +570,7 @@ lab_a2a6:
 
 lab_a2b1:
     jsr list+1              ;a2b1  20 b6 c5   Jump into BASIC Perform LIST mid-instruction
-    jsr sub_c918            ;a2b4  20 18 c9
+    jsr wtxtptr             ;a2b4  20 18 c9   BASIC Copy FBUFPT (0x006E) to TXTPTR (0x0077)
     jsr sub_b965            ;a2b7  20 65 b9
     jmp lab_a2c5            ;a2ba  4c c5 a2
 
@@ -597,7 +597,7 @@ lab_a2d1:
     sty txtptr+1            ;a2df  84 78
     jsr chrgot              ;a2e1  20 76 00   Subroutine: Get the Same Byte of BASIC Text again
     beq lab_a2ec            ;a2e4  f0 06
-    jsr iscoma              ;a2e6  20 f5 be   BASIC Does CHRGET point to a comma?  Syntax Error if not
+    jsr iscoma              ;a2e6  20 f5 be   BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jmp lab_a24b_input_loop ;a2e9  4c 4b a2
 
 lab_a2ec:
@@ -611,17 +611,17 @@ copyright:                  ;a2f7
     .ascii "(C) G MUTZ (84)"
 
 
-;Send byte to file on IEC or IEEE
+;Send a byte on IEC or IEEE
 sub_a306_ciout:
     pha                     ;a306  48
     jsr sub_a8a0_cmp_fa     ;a307  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a310_not_iec    ;a30a  d0 04
     pla                     ;a30c  68
-    jmp sub_a4d2_ciout      ;a30d  4c d2 a4   Send byte to file on IEC
+    jmp sub_a4d2_ciout      ;a30d  4c d2 a4   Send a byte on IEC
 
 lab_a310_not_iec:
     pla                     ;a310  68
-    jmp filout              ;a311  4c 9e f1   Send a byte to file
+    jmp ciout               ;a311  4c 9e f1   Send a byte on IEEE
 
 
 ;Send LISTEN to IEC or IEEE
@@ -715,13 +715,13 @@ lab_a374_not_iec:
     jmp scatn               ;a374  4c 48 f1   Release ATN on IEEE
 
 
-ep_a377_ciout:
+ep_a377_isour:
     jsr sub_a8a0_cmp_fa     ;a377  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a37f_not_iec    ;a37a  d0 03
-    jmp sub_a423_isour      ;a37c  4c 23 a4
+    jmp sub_a423_isour      ;a37c  4c 23 a4   Send last byte to IEC
 
 lab_a37f_not_iec:
-    jmp ieeout              ;a37f  4c 09 f1   KERNAL Output a byte to IEEE
+    jmp isour               ;a37f  4c 09 f1   KERNAL Send last byte to IEEE
 
 
 ep_a382_untorl:
@@ -1015,7 +1015,7 @@ lab_a4f9_dlad00:
     sta mem_00a0_c3p0       ;a502  85 a0
     jmp sub_a3cb_datahi     ;a504  4c cb a3   Set data line high (inverted)
 
-;Input a byte from IEC with initial status check
+;Read a byte from IEC with initial status check
 ;This is different from the C64 KERNAL
 sub_a507_acptrs:
     lda status              ;a507  a5 96
@@ -1023,7 +1023,7 @@ sub_a507_acptrs:
     lda #0x0d               ;a50b  a9 0d
     rts                     ;a50d  60
 
-;Input a byte from IEC
+;Read a byte from IEC
 ;This is from the C64 KERNAL
 sub_a50e_acptr:
     sei                     ;a50e  78
@@ -1177,7 +1177,7 @@ lab_a5ca_send_dos_cmd:
 
 lab_a5d8:
     lda [mem_001f],y        ;a5d8  b1 1f
-    jsr sub_a4d2_ciout     ;a5da  20 d2 a4     Send byte to file on IEC
+    jsr sub_a4d2_ciout     ;a5da  20 d2 a4     Send a byte on IEC
     iny                     ;a5dd  c8
     cpy fnlen               ;a5de  c4 d1
     bne lab_a5d8            ;a5e0  d0 f6
@@ -1194,7 +1194,7 @@ sub_a5eb_save:
     sta sa                  ;a5f3  85 d3        Set SA (KERNAL current secondary address)
     ldy fnlen               ;a5f5  a4 d1
     bne lab_a5fc            ;a5f7  d0 03
-    jmp lab_bf00            ;a5f9  4c 00 bf
+    jmp syntax              ;a5f9  4c 00 bf     BASIC ?SYNTAX ERROR
 
 lab_a5fc:
     jsr sub_a689_open       ;a5fc  20 89 a6     Send OPEN to IEC
@@ -1209,7 +1209,7 @@ lab_a5fc:
     lda ml1ptr+1            ;a60e  a5 fc
     sta salptr+1            ;a610  85 ca
     ;Parse end address for SAVE into ealptr
-    jsr iscoma              ;a612  20 f5 be     BASIC Does CHRGET point to a comma?  Syntax Error if not
+    jsr iscoma              ;a612  20 f5 be     BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a861            ;a615  20 61 a8     Evals expression, calls hexit 4 times, sets ml1ptr
     lda ml1ptr              ;a618  a5 fb
     sta ealptr              ;a61a  85 b7
@@ -1238,15 +1238,15 @@ lab_a633_with_addr:
     jsr sub_a49c_secnd     ;a638  20 9c a4     Send secondary address to IEC for LISTEN
     ldy #0x00               ;a63b  a0 00
     lda salptr              ;a63d  a5 c9
-    jsr sub_a4d2_ciout     ;a63f  20 d2 a4     Send byte to file on IEC
+    jsr sub_a4d2_ciout     ;a63f  20 d2 a4     Send a byte on IEC
     lda salptr+1            ;a642  a5 ca
-    jsr sub_a4d2_ciout     ;a644  20 d2 a4     Send byte to file on IEC
+    jsr sub_a4d2_ciout     ;a644  20 d2 a4     Send a byte on IEC
 
 lab_a647:
     jsr sub_a672            ;a647  20 72 a6
     bcs lab_a65b            ;a64a  b0 0f
     lda [salptr],y          ;a64c  b1 c9
-    jsr sub_a4d2_ciout     ;a64e  20 d2 a4     Send byte to file on IEC
+    jsr sub_a4d2_ciout     ;a64e  20 d2 a4     Send a byte on IEC
     jsr sub_a89a            ;a651  20 9a a8
     beq lab_a65b            ;a654  f0 05
     jsr sub_a682            ;a656  20 82 a6
@@ -1312,7 +1312,7 @@ lab_a68f:
     lda status              ;a6a1  a5 96      A = KERNAL status
     bpl lab_a6a8_present    ;a6a3  10 03      Branch if device not present error bit = 0
     ;device not present
-    jmp nprsnt              ;a6a5  4c bb f4   KERNAL Print ?DEVICE NOT PRESENT error
+    jmp nprsnt              ;a6a5  4c bb f4   KERNAL ?DEVICE NOT PRESENT ERROR
 
 ;device is present
 lab_a6a8_present:
@@ -1320,7 +1320,7 @@ lab_a6a8_present:
 
 lab_a6aa:
     lda [fnadr],y           ;a6aa  b1 da
-    jsr sub_a4d2_ciout     ;a6ac  20 d2 a4   Send byte to file on IEC
+    jsr sub_a4d2_ciout     ;a6ac  20 d2 a4   Send a byte on IEC
     iny                     ;a6af  c8
     cpy fnlen               ;a6b0  c4 d1
     bne lab_a6aa            ;a6b2  d0 f6
@@ -1332,12 +1332,12 @@ lab_a6b7_load_or_verify:
     jsr sub_a85a_cmp_comma  ;a6ba  20 5a a8   Gets byte at txtptr+0 into A, compares it to a comma
     cmp #';                 ;a6bd  c9 3b      Is the byte at txtptr+0 a semicolon?
     bne lab_a6c6            ;a6bf  d0 05
-    sta tapwct            ;a6c1  85 ba
+    sta tapwct              ;a6c1  85 ba
     jsr chrget              ;a6c3  20 70 00
 
 lab_a6c6:
     jsr sub_a6f6            ;a6c6  20 f6 a6
-    jsr resbas              ;a6c9  20 51 f3   KERNAL Reset BASIC execution to start, clear, and chain
+    jsr is7802              ;a6c9  20 51 f3   KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
     bne lab_a6d1            ;a6cc  d0 03
     jsr sub_a83c_status     ;a6ce  20 3c a8   Query the device's status and print it
 
@@ -1349,7 +1349,7 @@ lab_a6d1:
     jsr stop                ;a6d5  20 2b f9   KERNAL test STOP key and act if pressed
     ldy #0xae               ;a6d8  a0 ae      A = index to message "READY."
     jsr prmsg               ;a6da  20 49 f3   KERNAL Print a message from 0xF000 table at offset Y
-    jsr resbas              ;a6dd  20 51 f3   KERNAL Reset BASIC execution to start, clear, and chain
+    jsr is7802              ;a6dd  20 51 f3   KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
     bne lab_a6e5            ;a6e0  d0 03
     jmp lab_b4ad            ;a6e2  4c ad b4
 
@@ -1380,17 +1380,17 @@ lab_a6ff:
     jsr sub_a3ef_talk       ;a709  20 ef a3   Send TALK to IEC
     lda sa                  ;a70c  a5 d3      A = KERNAL current secondary address
     jsr sub_a4bc_tksa       ;a70e  20 bc a4   Send secondary address to an IEC device commanded to talk
-    jsr sub_a507_acptrs     ;a711  20 07 a5   Input a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;a711  20 07 a5   Read a byte from IEC with initial status check
     sta salptr              ;a714  85 c9
     lda status              ;a716  a5 96
     lsr a                   ;a718  4a
     lsr a                   ;a719  4a
     bcc lab_a71f            ;a71a  90 03
-    jmp notfnd              ;a71c  4c ad f5   KERNAL Print ?FILE NOT FOUND
+    jmp notfnd              ;a71c  4c ad f5   KERNAL ?FILE NOT FOUND ERROR
 
 lab_a71f:
     jsr lodmsg              ;a71f  20 6d f4   KERNAL Print LOADING or VERIFYING if in direct mode
-    jsr sub_a507_acptrs     ;a722  20 07 a5   Input a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;a722  20 07 a5   Read a byte from IEC with initial status check
     sta salptr+1            ;a725  85 ca
     jsr sub_a85a_cmp_comma  ;a727  20 5a a8   Gets byte at txtptr+0 into A, compares it to a comma
     bne lab_a73e_not_comma  ;a72a  d0 12
@@ -1425,7 +1425,7 @@ lab_a750:
     jmp sub_a65e_close      ;a75b  4c 5e a6     Send CLOSE to IEC
 
 lab_a75e:
-    jsr sub_a507_acptrs     ;a75e  20 07 a5     Input a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;a75e  20 07 a5     Read a byte from IEC with initial status check
     tax                     ;a761  aa
     lda status              ;a762  a5 96
     lsr a                   ;a764  4a
@@ -1449,8 +1449,8 @@ lab_a75e:
     sta ml1ptr+1            ;a787  85 fc
     jsr sub_d717            ;a789  20 17 d7
     jsr sub_d52e            ;a78c  20 2e d5
-    ldy #0x6e               ;a78f  a0 6e
-    jmp lab_f5b7            ;a791  4c b7 f5
+    ldy #0x6e               ;a78f  a0 6e        Y = 0x6E (?VERIFY ERROR)
+    jmp krnerr              ;a791  4c b7 f5     KERNAL ?<message> ERROR from KERNAL error in Y
 
 lab_a794:
     sta [salptr],y          ;a794  91 c9
@@ -1523,11 +1523,11 @@ lab_a7e1_fname:
 
 lab_a7f4:
     sty salptr              ;a7f4  84 c9
-    jsr sub_a507_acptrs     ;a7f6  20 07 a5   Input a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;a7f6  20 07 a5   Read a byte from IEC with initial status check
     sta salptr+1            ;a7f9  85 ca
     ldy status              ;a7fb  a4 96
     bne lab_a831            ;a7fd  d0 32
-    jsr sub_a507_acptrs     ;a7ff  20 07 a5   Input a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;a7ff  20 07 a5   Read a byte from IEC with initial status check
     ldy status              ;a802  a4 96
     bne lab_a831            ;a804  d0 2b
     ldy salptr              ;a806  a4 c9
@@ -1539,7 +1539,7 @@ lab_a7f4:
     jsr chrout              ;a812  20 d2 ff   KERNAL Send a char to the current output device
 
 lab_a815:
-    jsr sub_a507_acptrs     ;a815  20 07 a5   Input a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;a815  20 07 a5   Read a byte from IEC with initial status check
     ldx status              ;a818  a6 96
     bne lab_a831            ;a81a  d0 15
     tax                     ;a81c  aa
@@ -1580,7 +1580,7 @@ sub_a83c_status:
     jsr sub_a4bc_tksa       ;a847  20 bc a4     Send secondary address to an IEC device commanded to talk
 
 lab_a84a:
-    jsr sub_a507_acptrs     ;a84a  20 07 a5     Input a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;a84a  20 07 a5     Read a byte from IEC with initial status check
     jsr chrout              ;a84d  20 d2 ff     KERNAL Send a char to the current output device
     cmp #0x0d               ;a850  c9 0d
     bne lab_a84a            ;a852  d0 f6
@@ -1600,7 +1600,7 @@ sub_a861:
     jsr frmevl              ;a861  20 98 bd     BASIC Input and evaluate any expression
     jsr freestr             ;a864  20 b5 c7     BASIC Discard temporary string
     cmp #0x04               ;a867  c9 04
-    bne lab_a88c            ;a869  d0 21
+    bne lab_a88c_syntax     ;a869  d0 21
     ldy #0xff               ;a86b  a0 ff
     jsr sub_a894_hexit_stk  ;a86d  20 94 a8     Does something in stack area with hexit
     jsr sub_a88f_asl_a_4x   ;a870  20 8f a8     Perform ASL A four times
@@ -1616,8 +1616,8 @@ sub_a861:
     sta ml1ptr              ;a889  85 fb
     rts                     ;a88b  60
 
-lab_a88c:
-    jmp lab_bf00            ;a88c  4c 00 bf
+lab_a88c_syntax:
+    jmp syntax              ;a88c  4c 00 bf     ?SYNTAX ERROR unconditionally
 
 ;Perform ASL A four times
 sub_a88f_asl_a_4x:
@@ -1631,7 +1631,7 @@ sub_a88f_asl_a_4x:
 sub_a894_hexit_stk:
     iny                     ;a894  c8
     lda [mem_001f],y        ;a895  b1 1f
-    jmp hexit               ;a897  4c 8d d7
+    jmp hexit               ;a897  4c 8d d7     MONITOR Evaluate char in A to a hex nibble
 
 sub_a89a:
     lda pia1_portb          ;a89a  ad 12 e8
@@ -1645,12 +1645,12 @@ sub_a8a0_cmp_fa:
     cmp fa                  ;a8a5  c5 d4        Compare to KERNAL current device number
     rts                     ;a8a7  60
 
-;Parse integer into SA with leading # sign, or Syntax Error
+;Parse integer into SA with leading # sign, or ?SYNTAX ERROR
 sub_a8a8_parse_sa_1:
     lda #'#                 ;a8a8  a9 23
-    jsr isaequ              ;a8aa  20 f7 be     BASIC Does CHRGET point to the same byte as in A?  Syntax Error if not
+    jsr isaequ              ;a8aa  20 f7 be     BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
 
-;Parse integer into SA without leading #, or Syntax Error
+;Parse integer into SA without leading #, or ?SYNTAX ERROR
 sub_a8ad_parse_sa_2:
     jsr sub_a3ad_set_fa_st  ;a8ad  20 ad a3     Set FA = copy of current IEC device num, set KERNAL STATUS = 0
     jsr gtbytc+3            ;a8b0  20 d4 c8     BASIC Evaluate integer 0-255, return it in X
