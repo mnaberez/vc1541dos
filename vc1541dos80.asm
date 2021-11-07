@@ -843,7 +843,7 @@ sub_a423:
     sei                     ;a423  78
     jsr sub_a3cb            ;a424  20 cb a3
     jsr sub_a3dd            ;a427  20 dd a3
-    bcs lab_a490            ;a42a  b0 64
+    bcs lab_a490_not_pres   ;a42a  b0 64      Branch to device not present error
     jsr sub_a3c2            ;a42c  20 c2 a3
     bit mem_00fd            ;a42f  24 fd
     bpl lab_a43d            ;a431  10 0a
@@ -868,7 +868,7 @@ lab_a449:
     cmp via_port_a          ;a44c  cd 41 e8
     bne lab_a449            ;a44f  d0 f8
     asl a                   ;a451  0a
-    bcc lab_a493            ;a452  90 3f
+    bcc lab_a493_wr_tmo     ;a452  90 3f
     ror bsour               ;a454  66 a5      IEEE byte buffer for output (FF means no character)
     bcs lab_a45d            ;a456  b0 05
     jsr sub_a3d4            ;a458  20 d4 a3
@@ -898,27 +898,27 @@ lab_a460:
 lab_a482:
     lda via_ifr             ;a482  ad 4d e8
     and #0x20               ;a485  29 20
-    bne lab_a493          ;a487  d0 0a
+    bne lab_a493_wr_tmo     ;a487  d0 0a      Branch to write timeout error
     jsr sub_a3dd            ;a489  20 dd a3
     bcs lab_a482            ;a48c  b0 f4
     cli                     ;a48e  58
     rts                     ;a48f  60
 
-lab_a490:
+lab_a490_not_pres:
     lda #0b10000000         ;a490  a9 80      A = status bit for device not present error
     bit 0x03a9              ;a492  2c a9 03   lab_a449, lab_a482 jump here mid-instruction
-lab_a493 = (. - 2)
+lab_a493_wr_tmo = (. - 2)
    ;lda #0b00000011         ;a492  __ a9 03   A = status bits for timeout while writing
 
-lab_a495:
+lab_a495_error:
     jsr sub_a580_st_or_a    ;a495  20 80 a5   KERNAL STATUS = STATUS | A
     cli                     ;a498  58
     clc                     ;a499  18
-    bcc lab_a4f3            ;a49a  90 57
+    bcc lab_a4f3            ;a49a  90 57      Branch always
 
 ;Send secondary address to IEC for LISTEN
 sub_a49c_second:
-    sta bsour            ;a49c  85 a5
+    sta bsour               ;a49c  85 a5
     jsr sub_a419            ;a49e  20 19 a4
 
 ;Prepare for data on IEC (Turn bit 3 of VIA PORT A off) (ATN out)
@@ -944,7 +944,7 @@ sub_a4b3_via_pb2_off:
 
 ;Send secondary address to an IEC device commanded to talk
 sub_a4bc_tksa:
-    sta bsour            ;a4bc  85 a5
+    sta bsour               ;a4bc  85 a5
     jsr sub_a419            ;a4be  20 19 a4
     sei                     ;a4c1  78
     jsr sub_a3d4            ;a4c2  20 d4 a3
@@ -1040,8 +1040,8 @@ lab_a52b:
 lab_a539:
     lda mem_00ff            ;a539  a5 ff
     beq lab_a542            ;a53b  f0 05
-    lda #0x02               ;a53d  a9 02
-    jmp lab_a495            ;a53f  4c 95 a4
+    lda #0b00000010         ;a53d  a9 02      A = status bit for timeout error
+    jmp lab_a495_error      ;a53f  4c 95 a4
 
 lab_a542:
     jsr sub_a3d4            ;a542  20 d4 a3
