@@ -89,7 +89,7 @@
     isour = 0xf109          ;KERNAL Send last byte to IEEE
     second = 0xf143         ;KERNAL Send Secondary Address to IEEE
     scatn = 0xf148          ;KERNAL Release ATN on IEEE
-    ciout = 0xf19e          ;KERNAL Send a byte to file on IEEE
+    ciout = 0xf19e          ;KERNAL Send a byte to IEEE
     untlk = 0xf1ae          ;KERNAL Send UNTALK to IEEE
     unlsn = 0xf1b9          ;KERNAL Send UNLISTEN to IEEE
     acptr = 0xf1c0          ;KERNAL Read a byte from IEEE
@@ -294,8 +294,15 @@ sub_a119_jmp_lstksa:
 
 ;Wedge command !OPEN
 ;
-;  OPEN#SA,"FILENAME"     Open file on IEC or IEEE device with secondary address SA
-;  OPEN#SA,""             Open the channel without sending a filename
+;Open a channel to the device number in FA ($D4 / 212) with the
+;given secondary address.  The device may be IEC or IEEE.  IEC
+;is used if FA equals the the active IEC device number in mem_03fe.
+;
+;  OPEN#2,"FILENAME"     Open a file with secondary address 2 on device FA
+;
+;  OPEN#2,""             Open a channel to secondary address 2 on device FA
+;                        without sending a filename.  The comma and empty filename
+;                        are required.
 ;
 lab_a11c_cmd_open:
     jsr sub_a390_setup      ;a11c  20 90 a3     Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
@@ -312,12 +319,16 @@ sub_a128_open:
     jmp sub_a689_open       ;a12d  4c 89 a6     Send OPEN to IEC
 
 lab_a130_not_iec:
-    jmp open                ;a130  4c a5 f4     Send filename to IEEE
+    jmp open                ;a130  4c a5 f4     Send OPEN to IEEE
 
 
 ;Wedge command !CLOSE
 ;
-;  !CLOSE#SA               Close file on IEC or IEEE device with secondary address SA
+;Close a channel on the device number in FA ($D4 / 212) with the
+;given secondary address.  The device may be IEC or IEEE.  IEC
+;is used if FA equals the the active IEC device number in mem_03fe.
+;
+;  !CLOSE#2   Close channel with secondary address 2 on device FA
 ;
 lab_a133_cmd_close:
     jsr sub_a8a8_parse_sa_1 ;a133  20 a8 a8   Parse integer into SA with leading # sign, or Syntax Error
@@ -346,9 +357,11 @@ lab_a149_not_iec:
 
 ;Wedge command !CMD
 ;
-;  !CMD#SA    Redirect output to the given secondary address on the
-;             current device, which is specified by location $D4 / 212.
-;             The device may be IEC or IEEE.
+;Redirect output to the device number in FA ($D4 / 212) on the
+;given secondary address.  The device may be IEC or IEEE.  IEC
+;is used if FA equals the the active IEC device number in mem_03fe.
+;
+;  !CMD#2   Redirect output to secondary address 2 on device FA.
 ;
 lab_a14c_cmd_cmd:
     jsr sub_a8a8_parse_sa_1 ;a14c  20 a8 a8   Parse integer into SA with leading # sign, or Syntax Error
@@ -623,7 +636,7 @@ sub_a306_ciout:
 
 lab_a310_not_iec:
     pla                     ;a310  68
-    jmp ciout               ;a311  4c 9e f1   Send a byte on IEEE
+    jmp ciout               ;a311  4c 9e f1   Send a byte to IEEE
 
 
 ;Send LISTEN to IEC or IEEE
