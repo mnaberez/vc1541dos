@@ -47,7 +47,7 @@
     mem_87d0_torl = 0x87d0  ;Stores TALK or LISTEN state: 0x40=TALK, 0x20=LISTEN
     rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
     error = 0xb3cf          ;BASIC Print error message offset by X in msgs table and return to prompt
-    lab_b4ad = 0xb4ad
+    resbas = 0xb4ad         ;BASIC Reset execution to start, clear, and chain
     sub_b965 = 0xb965
     prstr = 0xbb1d          ;BASIC Print null-terminated string at A=addr low, Y=addr hi
     defdev = 0xbb44         ;BASIC Restore default devices
@@ -62,7 +62,7 @@
     ptrget = 0xc12b         ;BASIC Find a variable
     sub_c5b0 = 0xc5b0
     list = 0xc5b5           ;BASIC Perform list; full check of parameters, incl. -
-    freestr = 0xc7b5        ;BASIC Discard temporary string
+    frestr = 0xc7b5         ;BASIC Discard temporary string
     gtbytc = 0xc8d1         ;BASIC Evaluate an expr for 1-byte param (0-255), return in X
     wtxtptr = 0xc918        ;BASIC Copy FBUFPT (0x006E) to TXTPTR (0x0077)
     fin = 0xce29            ;BASIC Convert an ASCII string into a numeral in FPAcc #1
@@ -109,7 +109,7 @@
 
     jmp sub_a036_install        ;a000  4c 36 a0   Install the wedge with CHRGET patch
     jmp sub_a09c_wedge_cmd      ;a003  4c 9c a0   Perform wedge command at txtptr+0
-    jmp sub_a377_isour          ;a006  4c 77 a3   Send a byte to IEC or IEEE
+    jmp sub_a377_isour          ;a006  4c 77 a3   Send last byte to IEC or IEEE
     jmp sub_a382_untorl         ;a009  4c 82 a3   Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
     jmp sub_a128_open           ;a00c  4c 28 a1   Send OPEN to IEC or IEEE
     jmp sub_a128_close          ;a00f  4c 36 a1   Send CLOSE to IEC or IEEE
@@ -261,13 +261,15 @@ lab_a0fc:
 lab_a106:
     jsr gtbytc+3            ;a106  20 d4 c8     BASIC Evaluate integer 0-255, return it in X
     stx mem_03ff            ;a109  8e ff 03     Save as copy of current IEC device number
-    jmp sub_a09c_wedge_cmd             ;a10c  4c 9c a0
+    jmp sub_a09c_wedge_cmd  ;a10c  4c 9c a0
 
 
 ;Wedge command !LOAD
 ;
-;  !LOAD"filename"         Load into BASIC program area
-;  !LOAD"filename",start   Load into start address
+;  !LOAD"FILENAME"        Load into BASIC program area (TXTTAB)
+;
+;  !LOAD"FILENAME",027A   Load at start address specified as 4 hex digits.
+;                         All four digits are required.  An end address is not supported.
 ;
 lab_a10f_cmd_load:
     lda #0                  ;a10f  a9 00        A = 0 (LOAD)
@@ -275,8 +277,10 @@ lab_a10f_cmd_load:
 
 ;Wedge command !VERIFY
 ;
-;  !VERIFY"filename"         Verify against BASIC program area
-;  !VERIFY"filename",start   Verify against start address
+;  !VERIFY"FILENAME"        Verify against BASIC program area (TXTTAB)
+;
+;  !VERIFY"FILENAME",027A   Verify against start address specified as 4 hex digits.
+;                           All four digits are required.  An end address is not supported.
 ;
 lab_a112_cmd_verify = (. - 2)
    ;lda #0xff              ;a111  __ a9 ff     A = FF (VERIFY)
@@ -327,7 +331,7 @@ sub_a128_close:
     jmp sub_a65e_close      ;a13b  4c 5e a6   Send CLOSE to IEC
 
 lab_a13e_not_iec:
-    jmp close               ;a13e  4c 2f f7   Send CLOSE to IEC
+    jmp close               ;a13e  4c 2f f7   Send CLOSE to IEEE
 
 
 ;Read a byte from IEC or IEEE
@@ -337,7 +341,7 @@ sub_a141_acptr:
     jmp sub_a507_acptrs     ;a146  4c 07 a5   Read a byte from IEC with initial status check
 
 lab_a149_not_iec:
-    jmp acptr              ;a149  4c c0 f1   XXX seems not correct
+    jmp acptr               ;a149  4c c0 f1   Read a byte from IEEE
 
 
 ;Wedge command !CMD
@@ -411,7 +415,7 @@ lab_a19f_semi:
     jsr sub_c5b0            ;a1a9  20 b0 c5
 
 lab_a1ac:
-    jsr freestr             ;a1ac  20 b5 c7   BASIC Discard temporary string
+    jsr frestr              ;a1ac  20 b5 c7   BASIC Discard temporary string
     sta fnlen               ;a1af  85 d1
     ldy #0x00               ;a1b1  a0 00
 
@@ -714,6 +718,7 @@ lab_a374_not_iec:
     jmp scatn               ;a374  4c 48 f1   Release ATN on IEEE
 
 
+;Send last byte to IEC or IEEE
 sub_a377_isour:
     jsr sub_a8a0_cmp_fa     ;a377  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a37f_not_iec    ;a37a  d0 03
@@ -723,6 +728,7 @@ lab_a37f_not_iec:
     jmp isour               ;a37f  4c 09 f1   KERNAL Send last byte to IEEE
 
 
+;Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
 sub_a382_untorl:
     pha                     ;a382  48
     jsr sub_a8a0_cmp_fa     ;a383  20 a0 a8   Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
@@ -748,7 +754,7 @@ sub_a390_setup:
     lda #0x17               ;a3a4  a9 17
     sta via_port_a          ;a3a6  8d 41 e8
     lda #0x80               ;a3a9  a9 80
-    sta mem_00fd_r2d2            ;a3ab  85 fd
+    sta mem_00fd_r2d2       ;a3ab  85 fd
 
 ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
 sub_a3ad_set_fa_st:
@@ -868,7 +874,7 @@ lab_a43d_noeoi:
     bcc lab_a43d_noeoi      ;a440  90 fb
     jsr sub_a3b9_clklo      ;a442  20 b9 a3   Set clock line low (inverted)
     lda #0x08               ;a445  a9 08
-    sta mem_00ff_count            ;a447  85 ff
+    sta mem_00ff_count      ;a447  85 ff
 
 lab_a449_isr01:
     lda via_port_a          ;a449  ad 41 e8
@@ -1061,7 +1067,7 @@ lab_a542:
     jsr sub_a3c2_clkhi      ;a545  20 c2 a3   Set clock line high (inverted)
     lda #0b01000000         ;a548  a9 40      A = status bit for End of File (EOF)
     jsr sub_a580_st_or_a    ;a54a  20 80 a5   KERNAL STATUS = STATUS | A
-    inc mem_00ff_count            ;a54d  e6 ff
+    inc mem_00ff_count      ;a54d  e6 ff
     bne lab_a51b            ;a54f  d0 ca
 
 lab_a551:
@@ -1111,7 +1117,7 @@ lab_a586_cmd_dos:
     bne lab_a591_more       ;a58c  d0 03
 
     ;Nothing after @ so jump to print device status
-    jmp sub_a83c_status     ;a58e  4c 3c a8     Query the device's status and print it
+    jmp sub_a83c_status     ;a58e  4c 3c a8     Jump out to Query the device's status and print it
 
     ;Something after the @
 lab_a591_more:
@@ -1162,7 +1168,7 @@ lab_a5b8_loop:
 
 lab_a5c2_not_u:
     jsr frmevl              ;a5c2  20 98 bd     BASIC Input and evaluate any expression
-    jsr freestr             ;a5c5  20 b5 c7     BASIC Discard temporary string
+    jsr frestr              ;a5c5  20 b5 c7     BASIC Discard temporary string
     sta fnlen               ;a5c8  85 d1
 
 ;Send DOS command in buffer mem_001f
@@ -1171,7 +1177,7 @@ lab_a5ca_send_dos_cmd:
     sta status              ;a5cc  85 96        KERNAL STATUS = 0 (no error)
     jsr sub_a3f2_listen     ;a5ce  20 f2 a3     Send LISTEN to IEC
     lda #0x6f               ;a5d1  a9 6f
-    jsr sub_a49c_secnd     ;a5d3  20 9c a4     Send secondary address to IEC for LISTEN
+    jsr sub_a49c_secnd      ;a5d3  20 9c a4     Send secondary address to IEC for LISTEN
     ldy #0x00               ;a5d6  a0 00
 
 lab_a5d8:
@@ -1182,8 +1188,15 @@ lab_a5d8:
     bne lab_a5d8            ;a5e0  d0 f6
     jmp sub_a4ef_unlsn      ;a5e2  4c ee a4     Send UNLISTEN to IEC
 
+;Wedge command !SAVE
+;
+;  !SAVE"FILENAME"            Saves the current BASIC program
+;
+;  !SAVE"FILENAME",027A,0300  Save memory from 0x027A-0x02FF inclusive.
+;                             Both addresses are required and must be 4 hex digits.
+;
 lab_a5e5_cmd_save:
-    jsr sub_a5eb_save       ;a5e5  20 eb a5
+    jsr sub_a5eb_save       ;a5e5  20 eb a5     Try to save the file as requested
     jmp sub_a83c_status     ;a5e8  4c 3c a8     Query the device's status and print it
 
 sub_a5eb_save:
@@ -1199,24 +1212,24 @@ lab_a5fc:
     jsr sub_a689_open       ;a5fc  20 89 a6     Send OPEN to IEC
     jsr sub_a85a_cmp_comma  ;a5ff  20 5a a8     Gets byte at txtptr+0 into A, compares it to a comma
     bne lab_a623_no_addr    ;a602  d0 1f        Branch if it's not a command
-    ;Found comma
-    jsr chrget              ;a604  20 70 00     Consume comma
+    ;Found a comma
+    jsr chrget              ;a604  20 70 00     Consume the comma
     ;Parse start address for SAVE into salptr
-    jsr sub_a861            ;a607  20 61 a8     Evals expression, calls hexit 4 times, sets ml1ptr
+    jsr sub_a861_parse_addr ;a607  20 61 a8     Parse a 4-digit hex address from BASIC text into ml1ptr
     lda ml1ptr              ;a60a  a5 fb
     sta salptr              ;a60c  85 c9
     lda ml1ptr+1            ;a60e  a5 fc
     sta salptr+1            ;a610  85 ca
     ;Parse end address for SAVE into ealptr
     jsr iscoma              ;a612  20 f5 be     BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
-    jsr sub_a861            ;a615  20 61 a8     Evals expression, calls hexit 4 times, sets ml1ptr
+    jsr sub_a861_parse_addr ;a615  20 61 a8     Parse a 4-digit hex address from BASIC text into ml1ptr
     lda ml1ptr              ;a618  a5 fb
     sta ealptr              ;a61a  85 b7
     lda ml1ptr+1            ;a61c  a5 fc
     sta ealptr+1            ;a61e  85 b8
     jmp lab_a633_with_addr  ;a620  4c 33 a6
 
-;No start/end address supplied with !SAVE command, so use BASIC program area
+;No start/end address supplied with !SAVE command, so use BASIC program area (from TXTTAB to VARTAB)
 lab_a623_no_addr:
     ;Set start address for SAVE in salptr
     lda txttab              ;a623  a5 28
@@ -1232,23 +1245,24 @@ lab_a623_no_addr:
 
 ;Perform SAVE.  Start address in salptr, end address in ealptr
 lab_a633_with_addr:
-    jsr sub_a3f2_listen     ;a633  20 f2 a3     Send LISTEN to IEC
-    lda sa                  ;a636  a5 d3        A = KERNAL current secondary address
-    jsr sub_a49c_secnd      ;a638  20 9c a4     Send secondary address to IEC for LISTEN
-    ldy #0x00               ;a63b  a0 00
+    jsr sub_a3f2_listen     ;a633  20 f2 a3   Send LISTEN to IEC
+    lda sa                  ;a636  a5 d3      A = KERNAL current secondary address
+    jsr sub_a49c_secnd      ;a638  20 9c a4   Send secondary address to IEC for LISTEN
+    ldy #0x00               ;a63b  a0 00      Y is always 0 in lab_a647_loop below
     lda salptr              ;a63d  a5 c9
-    jsr sub_a4d2_ciout      ;a63f  20 d2 a4     Send a byte to IEC
+    jsr sub_a4d2_ciout      ;a63f  20 d2 a4   Send a byte to IEC
     lda salptr+1            ;a642  a5 ca
-    jsr sub_a4d2_ciout      ;a644  20 d2 a4     Send a byte to IEC
+    jsr sub_a4d2_ciout      ;a644  20 d2 a4   Send a byte to IEC
 
 lab_a647_loop:
-    jsr sub_a672            ;a647  20 72 a6
-    bcs lab_a65b_done       ;a64a  b0 0f
-    lda [salptr],y          ;a64c  b1 c9
-    jsr sub_a4d2_ciout      ;a64e  20 d2 a4     Send a byte to IEC
+    jsr sub_a672_cmp_sal_eal;a647  20 72 a6   Compare SALPTR with EALPTR, sets C=1 if equal
+    bcs lab_a65b_done       ;a64a  b0 0f      Branch to done if end reach of range reached
 
-    jsr sub_a89a_chk_stop   ;a651  20 9a a8     STOP key pressed?  (Returns Z=1 if so.)
-    beq lab_a65b_done       ;a654  f0 05          Yes: branch to done
+    lda [salptr],y          ;a64c  b1 c9      A = get byte at SALPTR (Y is always 0)
+    jsr sub_a4d2_ciout      ;a64e  20 d2 a4   Send a byte to IEC
+
+    jsr sub_a89a_chk_stop   ;a651  20 9a a8   STOP key pressed?  (Returns Z=1 if so.)
+    beq lab_a65b_done       ;a654  f0 05        Yes: branch to done
 
     ;STOP key not pressed
 
@@ -1256,43 +1270,44 @@ lab_a647_loop:
     bne lab_a647_loop       ;a659  d0 ec
 
 lab_a65b_done:
-    jsr sub_a4ef_unlsn      ;a65b  20 ee a4     Send UNLISTEN to IEC
+    jsr sub_a4ef_unlsn      ;a65b  20 ee a4   Send UNLISTEN to IEC
 
 ;Send CLOSE to IEC
 sub_a65e_close:
     bit sa                  ;a65e  24 d3
     bmi lab_a671_done       ;a660  30 0f
-    jsr sub_a3f2_listen     ;a662  20 f2 a3     Send LISTEN to IEC
-    lda sa                  ;a665  a5 d3        A = KERNAL current secondary address
+    jsr sub_a3f2_listen     ;a662  20 f2 a3   Send LISTEN to IEC
+    lda sa                  ;a665  a5 d3      A = KERNAL current secondary address
     and #0xef               ;a667  29 ef
-    ora #0xe0               ;a669  09 e0        OR with 0xE0 = CLOSE
-    jsr sub_a49c_secnd     ;a66b  20 9c a4     Send secondary address to IEC for LISTEN
-    jsr sub_a4ef_unlsn      ;a66e  20 ee a4     Send UNLISTEN to IEC
+    ora #0xe0               ;a669  09 e0      OR with 0xE0 = CLOSE
+    jsr sub_a49c_secnd     ;a66b  20 9c a4    Send secondary address to IEC for LISTEN
+    jsr sub_a4ef_unlsn      ;a66e  20 ee a4   Send UNLISTEN to IEC
 
 lab_a671_done:
     rts                     ;a671  60
 
-sub_a672:
+;Compare SALPTR with EALPTR, sets C=1 if equal
+sub_a672_cmp_sal_eal:
     lda salptr              ;a672  a5 c9
     cmp ealptr              ;a674  c5 b7
-    bne lab_a680            ;a676  d0 08
+    bne lab_a680_noteq      ;a676  d0 08
     lda salptr+1            ;a678  a5 ca
     cmp ealptr+1            ;a67a  c5 b8
-    bne lab_a680            ;a67c  d0 02
+    bne lab_a680_noteq      ;a67c  d0 02
     sec                     ;a67e  38
     rts                     ;a67f  60
 
-lab_a680:
+lab_a680_noteq:
     clc                     ;a680  18
     rts                     ;a681  60
 
 ;Increment SALPTR
 sub_a682_inc_salptr:
     inc salptr              ;a682  e6 c9
-    bne lab_a688            ;a684  d0 02
+    bne lab_a688_nc         ;a684  d0 02
     inc salptr+1            ;a686  e6 ca
 
-lab_a688:
+lab_a688_nc:
     rts                     ;a688  60
 
 ;Send filename to IEC
@@ -1343,7 +1358,7 @@ lab_a6c6:
     jsr sub_a6f6            ;a6c6  20 f6 a6
     jsr is7802              ;a6c9  20 51 f3   KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
     bne lab_a6d1            ;a6cc  d0 03
-    jsr sub_a83c_status     ;a6ce  20 3c a8   Query the device's status and print it
+    jsr sub_a83c_status     ;a6ce  20 3c a8   Jump out ot Query the device's status and print it
 
 lab_a6d1:
     bit verchk              ;a6d1  24 9d      Bit KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
@@ -1355,7 +1370,7 @@ lab_a6d1:
     jsr prmsg               ;a6da  20 49 f3   KERNAL Print a message from 0xF000 table at offset Y
     jsr is7802              ;a6dd  20 51 f3   KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
     bne lab_a6e5            ;a6e0  d0 03
-    jmp lab_b4ad            ;a6e2  4c ad b4
+    jmp resbas              ;a6e2  4c ad b4   BASIC restart execution to start, clear, and chain
 
 lab_a6e5:
     jsr rsgetc              ;a6e5  20 22 b6   BASIC Reset GETCHR to start of program
@@ -1378,7 +1393,7 @@ sub_a6f6:
 
 lab_a6ff:
     jsr srchng              ;a6ff  20 49 f4   KERNAL Print SEARCHING if in direct mode
-    lda #(0 | 0x60)         ;a702  a9 60      A = secondary address 0 (LOAD) | 0x60
+    lda #(0 | 0x60)         ;a702  a9 60      A = secondary address 0 (LOAD) | 0x60 (SECOND)
     sta sa                  ;a704  85 d3      Set SA (KERNAL current secondary address)
     jsr sub_a689_open       ;a706  20 89 a6   Send OPEN to IEC
     jsr sub_a3ef_talk       ;a709  20 ef a3   Send TALK to IEC
@@ -1398,9 +1413,9 @@ lab_a71f:
     sta salptr+1            ;a725  85 ca
     jsr sub_a85a_cmp_comma  ;a727  20 5a a8   Gets byte at txtptr+0 into A, compares it to a comma
     bne lab_a73e_not_comma  ;a72a  d0 12
-    ;Got a comma
-    jsr chrget              ;a72c  20 70 00
-    jsr sub_a861            ;a72f  20 61 a8   Evals expression, calls hexit 4 times, sets ml1ptr
+    ;Found a comma
+    jsr chrget              ;a72c  20 70 00   Consume the comma
+    jsr sub_a861_parse_addr ;a72f  20 61 a8   Parse a 4-digit hex address from BASIC text into ml1ptr
     lda ml1ptr              ;a732  a5 fb
     sta salptr              ;a734  85 c9
     lda ml1ptr+1            ;a736  a5 fc
@@ -1485,7 +1500,7 @@ lab_a7b5_done:
 ;Evaluate expression as filename; set up FNLEN and FNADR
 sub_a7b6_eval_fname:
     jsr frmevl              ;a7b6  20 98 bd   BASIC Input and evaluate any expression
-    jsr freestr             ;a7b9  20 b5 c7   BASIC Discard temporary string
+    jsr frestr              ;a7b9  20 b5 c7   BASIC Discard temporary string
     sta fnlen               ;a7bc  85 d1
     lda mem_001f            ;a7be  a5 1f
     sta fnadr               ;a7c0  85 da
@@ -1496,6 +1511,7 @@ sub_a7b6_eval_fname:
 ;Wedge command !CATALOG
 ;
 ;  !CATALOG             List directory without filename; equivalent to CATALOG"$"
+;
 ;  !CATALOG"filename"   List directory with filename
 ;
 lab_a7c7_cmd_catalog:
@@ -1519,7 +1535,7 @@ lab_a7d5_no_fname:
 
 ;Perform !CATALOG with the set filename
 lab_a7e1_fname:
-    lda #(0 | 0x60)         ;a7e1  a9 60      A = secondary address 0 (LOAD) | 0x60
+    lda #(0 | 0x60)         ;a7e1  a9 60      A = secondary address 0 (LOAD) | 0x60 (SECOND)
     sta sa                  ;a7e3  85 d3      Set SA (KERNAL current secondary address)
     jsr sub_a689_open       ;a7e5  20 89 a6   Send OPEN to IEC
     jsr sub_a3ef_talk       ;a7e8  20 ef a3   Send TALK to IEC
@@ -1591,14 +1607,15 @@ sub_a83c_status:
     jsr sub_a65e_close      ;a83c  20 5e a6   Send CLOSE to IEC
     jsr sub_a3ad_set_fa_st  ;a83f  20 ad a3   Set FA = copy of current IEC device num, set KERNAL STATUS = 0
     jsr sub_a3ef_talk       ;a842  20 ef a3   Send TALK to IEC
-    lda #0x6f               ;a845  a9 6f
+    lda #(0x0F | 0x60)      ;a845  a9 6f      A = 0x0F (Command Channel) | 0x60 (SECOND)
     jsr sub_a4bc_tksa       ;a847  20 bc a4   Send secondary address to an IEC device commanded to talk
 
-lab_a84a:
+lab_a84a_more:
     jsr sub_a507_acptrs     ;a84a  20 07 a5   Read a byte from IEC with initial status check
     jsr chrout              ;a84d  20 d2 ff   KERNAL Send a char to the current output device
-    cmp #0x0d               ;a850  c9 0d
-    bne lab_a84a            ;a852  d0 f6
+    cmp #0x0d               ;a850  c9 0d      Is the character a carriage return?
+    bne lab_a84a_more       ;a852  d0 f6        No: loop for another character
+    ;Carriage return; end of input
     jsr sub_a4e4_untlk      ;a854  20 e4 a4   Send UNTALK to IEC
     jmp sub_a65e_close      ;a857  4c 5e a6   Send CLOSE to IEC
 
@@ -1609,23 +1626,28 @@ sub_a85a_cmp_comma:
     cmp #',                 ;a85e  c9 2c
     rts                     ;a860  60
 
+;Parse a 4-digit hex address from BASIC text into ml1ptr
 ;Evals expression, calls hexit 4 times, sets ml1ptr
 ;Called only during LOAD, SAVE, or VERIFY
-sub_a861:
+sub_a861_parse_addr:
     jsr frmevl              ;a861  20 98 bd   BASIC Input and evaluate any expression
-    jsr freestr             ;a864  20 b5 c7   BASIC Discard temporary string
-    cmp #0x04               ;a867  c9 04
-    bne lab_a88c_syntax     ;a869  d0 21
-    ldy #0xff               ;a86b  a0 ff
+    jsr frestr              ;a864  20 b5 c7   BASIC Discard temporary string
+    cmp #0x04               ;a867  c9 04      Is it exactly 4 characters?
+    bne lab_a88c_syntax     ;a869  d0 21        No: jump to ?SYNTAX ERROR
+    ldy #0xff               ;a86b  a0 ff      Y=FF so it rolls to 0 on first call
+    ;high byte, high nibble
     jsr sub_a894_hexit      ;a86d  20 94 a8   INCY then hexit value at [mem_001],Y
-    jsr sub_a88f_asl_a_4x   ;a870  20 8f a8   Perform ASL A four times
+    jsr sub_a88f_swap_nib   ;a870  20 8f a8   Perform ASL A four times
     sta ml1ptr+1            ;a873  85 fc
+    ;high byte, low nibble
     jsr sub_a894_hexit      ;a875  20 94 a8   INCY then hexit value at [mem_001],Y
     ora ml1ptr+1            ;a878  05 fc
     sta ml1ptr+1            ;a87a  85 fc
+    ;low byte, low nibble
     jsr sub_a894_hexit      ;a87c  20 94 a8   INCY then hexit value at [mem_001],Y
-    jsr sub_a88f_asl_a_4x   ;a87f  20 8f a8   Perform ASL A four times
+    jsr sub_a88f_swap_nib   ;a87f  20 8f a8   Perform ASL A four times
     sta ml1ptr              ;a882  85 fb
+    ;low byte, low nibble
     jsr sub_a894_hexit      ;a884  20 94 a8   INCY then hexit value at [mem_001],Y
     ora ml1ptr              ;a887  05 fb
     sta ml1ptr              ;a889  85 fb
@@ -1635,7 +1657,7 @@ lab_a88c_syntax:
     jmp syntax              ;a88c  4c 00 bf    ?SYNTAX ERROR unconditionally
 
 ;Perform ASL A four times
-sub_a88f_asl_a_4x:
+sub_a88f_swap_nib:
     asl a                   ;a88f  0a
     asl a                   ;a890  0a
     asl a                   ;a891  0a
