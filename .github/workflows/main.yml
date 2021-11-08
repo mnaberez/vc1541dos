@@ -1,0 +1,23 @@
+name: Run all tests
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install asxxxx
+      run: |
+        wget -q -U github http://6502.org/tools/asm/asxv5p40_20210426.zip
+        unzip -q asxv5p40_20210426.zip
+        make -C asxv5pxx/asxmak/linux/build all
+        echo "$PWD/asxv5pxx/asxmak/linux/build" >> $GITHUB_PATH
+
+    - name: Install srecord
+      run: sudo apt-get install srecord
+
+    - name: Assemble the binary
+      run: make list diff
