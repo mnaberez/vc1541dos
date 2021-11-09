@@ -8,33 +8,77 @@ This is a disassembly of `VC-1541-DOS/80` in the form of commented, relocatable 
 
 This source code is written for the `as6500` assembler, which is part of Alan Baldwin's [ASxxxx Cross-Assemblers](https://shop-pdp.net/ashtml/asxxxx.php) package.  The code can be assembled in one command using GNU Make:
 
-```
+```text
 $ make
 ```
 
-It will output a binary file that is bit-for-bit identical to the `VC-1541-DOS/80` to the original.  It will also produce a listing file that shows the assembled bytes alongside the source lines.  See the `Makefile` for the individual commands.  
+It will output a binary file that is bit-for-bit identical to the original `VC-1541-DOS/80` EPROM.  It will also produce a listing file that shows the assembled bytes alongside the source lines.  See the `Makefile` for the individual commands.  
 
-The EPROM installs in the UD11 ($A000) socket.  It is 4K and can be burned into a 2532.  You can also build a version for UD12 ($9000) by changing the start address at the top of the assembly file.  This is useful if you alread have a ROM in UD11, such as PaperClip or WordPro.
+The EPROM installs in the UD11 ($A000) socket.  It is 4K and can be burned into a 2532.  You can also build a version for UD12 ($9000) by changing the start address at the top of the assembly file.  This is useful if you already have a ROM in UD11, such as PaperClip or WordPro.
 
 ## Requirements
 
-An 80-column PET with BASIC 4.0 is required such as an 8032, 8096, 8296, or SuperPET.  A 40-column PET with BASIC 4.0 such as a 4016 or 4032 can be used but not all commands will work.
+- BASIC 4.0.  The code makes many calls into the BASIC 4.0 ROMs, and not only into the well-known entry points.
 
-The code is heavily dependent on the BASIC 4.0 ROMs.  Due to its use of location $87D0, the code requires an 80-column machine to fully function.  Location $87D0 is part of 80-column screen RAM that is not part of the visible screen.  This location is required for the wedge commands `!PRINT#`, `!GET#`, `!INPUT#`, and `!CMD#`.  These will not work correctly on a 40-column machine.  However, the other commands will work.
+- Due to its use of location $87D0, the code requires an 80-column machine to fully function.  $87D0 is in the 80-column screen RAM but is not part of the visible screen.  This location is required for the wedge commands `!print#`, `!get#`, `!input#`, and `!cmd#`.  These will not work correctly on a 40-column machine.  However, the other commands will work.
+
+- 2 bytes at the very top of Cassette Buffer 2: $03FE and $03FF.
+
+## Usage
+
+VC-1541-DOS is implemented as a BASIC wedge.  Activate the wedge with ``sys 40960``.  
+
+All commands in VC-1541-DOS wedge are prefixed with a `!` such as `!load"filename"`.  IEEE-488 and IEC devices can be used at the same time but only the `!` prefixed commands can access an IEC device.  Although the `!` commands share the same names as their CBM BASIC counterparts, they do not work the same.  
+
+### Commands that support only IEC
+
+Location `1022` holds the active IEC device number used by VC-1541-DOS.  When the wedge is installed, it defaults to `8`.  To use another IEC device such as `9`, enter `poke 1022,9`.
+
+| Command | Description |
+| - | - |
+| `!q` | Quit.  Uninstalls the VC-1541-DOS wedge. |
+| `!@` | Read the command channel on the active IEC device (location `1022`) and print it. |
+| `!@"s0:filename"` | Send an arbitrary string to the command channel on the active IEC device.  The command must be quoted. |
+| `!u9` | Temporarily change the device number of the active IEC device to the given device number.  This sends an `M-W` command to overwrite locations `$77` and `$78` in the drive, as described in the 1541 User's Guide.  Location `1022` will also be updated with the new device number. |
+| `!catalog` | Read the directory on the active IEC device.  This is equivalent to `!catalog"$"`. |
+| `!catalog"$0:foo*"` | Read the directory on the active IEC device with the given search pattern.  Enter the search pattern the same as you would with `load"$0:foo*",8` in CBM BASIC.` |
+| `!load"filename"` | Load a program from the active IEC device into the BASIC program area. |
+|  `!load"filename",027a` | Load a program from the active IEC device starting at the given addres.  Only a start address is supported.  It must be four hexadecimal digits. | |
+| `!verify"filename"` | Verify a program on the active IEC device against the BASIC program area. |
+| `!verify"filename",027a` | Verify a program on the active IEC device against the given addres.  Only a start address is supported.  It must be four hexadecimal digits. |
+| `!save"filename"` | Save a BASIC program to the active IEC device. |
+| `!save"filename",027a,0300` |  Save memory from 0x027A-0x02FF inclusive.  Both the start and the end addresses are required and must be four hexadecimal digits. |
+
+### Commands that support IEC and IEEE-488
+
+The `!` commands in this section support both IEC and IEEE-488 devices.  It uses the active IEC device (location `1022`) and location `212` to determine if it should use IEC.  Location `212` is normally used by the CBM KERNAL to store the current device number.  On power up, it contains `0`.  It is updated after device accesses, e.g. after executing `catalog u9`, `peek(212)` will return `9`.  You can also `poke` a number into `212` yourself.  
+
+If `peek(1022)` equals `peek(212)` then VC-1541-DOS will use the active IEC device for these commands.  Otherwise, IEEE will be used.  Therefore, to use these commands with the active IEC device, execute `poke212,peek(1022)` first.
+
+| Command | Description |
+| - | - |
+| `!open#2,"filename"` | Open a file with the given secondary address and filename on the device in location 212. |
+| `!open#2,""` | Open a channel without a filename to the given secondary address on the device in location 212.  The comma and the empty quotes are required. |
+| `!cmd#2` | Redirect output to the given secondary address on the device in location 212. |
+| `!print#2` | Print a blank line to the given secondary address on the device in location 212.  If `!cmd#` was started, it is automatically ended first. |
+
+### Additional Entry Points
+
+Only the first entry point ($A000 or `sys 40960`) is intended to be used from BASIC.  However, there are 16 additional entry points available for use by assembly language programs.  Please see the source code.
 
 ## Credits
 
-The original author of the `VC-1541-DOS/80` system is unknown.  There is a copyright string `(C) G MUTZ (84)` in the code.  Since the VIC-1541 was called "VC-1541" in Germany, the system may have originated in Germany.
+The original author is unknown.  The EPROM contains the strings `vc-1541-dos/80` and `(C) g mutz (84)`.
 
-[Sven Petersen](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter) discovered the "VC-1541-DOS/80" EPROM, disassembled large parts of it, determined the hardware requirements, and designed a circuit and PCB for it.  He was the first to bring up a working system.  Sven published extensive documentation with his findings, along some unanswered questions about using the wedge commands.
+[Sven Petersen](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter) discovered the EPROM, disassembled large parts of it, determined the hardware requirements, and designed a circuit and PCB for it.  He was the first to get it working.  Sven published extensive documentation on his findings, along some unanswered questions about the commands.
 
-Martin Hoffman-Vetter is credited by Sven for noticing that the IEC routines in the ROM are nearly identical to those in the C64 KERNAL, which greatly simplified disassembly.
+Martin Hoffman-Vetter is [credited](https://www.forum64.de/index.php?thread/106364-1541er-interface-f%C3%BCr-cbm8032-mystery-eprom/&postID=1742166#post1742166) by Sven for noticing that the IEC routines in the ROM are nearly identical to those in the C64 KERNAL, which greatly simplified disassembly.
 
 I created my own disassembly to investigate the unanswered questions and to have a relocatable source that could be changed or improved.  I started from the ROM binary using my [`m740dasm`](https://github.com/mnaberez/m740dasm) disassembler.  My primary reference materials were the book "Programming the PET/CBM" by Raeto West, the original C64 KERNAL source code from CBM, and some of my past PET/CBM disassemblies.  
 
 ## License
 
-No rights are claimed on the original `VC-1541-DOS/80` code or C64 KERNAL code.  All other work is made available under the BSD 3-Clause "New" or "Revised" License.
+No rights are claimed on the original `VC-1541-DOS/80` code or C64 KERNAL code.  All other work is made available under the 3-Clause BSD License.
 
 ## Author
 
