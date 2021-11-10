@@ -45,6 +45,7 @@
     mem_03fe = 0x3fe        ;Current device number on IEC bus (default 8)
     mem_03ff = 0x3ff        ;Copy of current IEC device number
     mem_87d0_torl = 0x87d0  ;Stores TALK or LISTEN state: 0x40=TALK, 0x20=LISTEN
+
     rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
     error = 0xb3cf          ;BASIC Print error message offset by X in msgs table and return to prompt
     resbas = 0xb4ad         ;BASIC Reset execution to start, clear, and chain
@@ -173,7 +174,7 @@ lab_a07d:
 
 lab_a08c:
     ldx tapend
-    lda #0x21
+    lda #'!
 
 lab_a090_wedge_done:
     plp
@@ -273,7 +274,7 @@ lab_a106:
 ;
 lab_a10f_cmd_load:
     lda #0                  ;A = 0 (LOAD)
-    bit 0xffa9              ;VERIFY jumps here mid-instruction = LDA #0xff
+    .byte 0x2c              ;Skip next instruction
 
 ;Wedge command !VERIFY
 ;
@@ -282,8 +283,8 @@ lab_a10f_cmd_load:
 ;  !VERIFY"FILENAME",027A   Verify against start address specified as 4 hex digits.
 ;                           All four digits are required.  An end address is not supported.
 ;
-lab_a112_cmd_verify = (. - 2)
-   ;lda #0xff              ;A = FF (VERIFY)
+lab_a112_cmd_verify:
+    lda #0xff              ;A = FF (VERIFY)
 
     sta verchk             ;Store in KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     jmp lab_a6b7_load_or_verify
@@ -315,7 +316,7 @@ lab_a11c_cmd_open:
 ;Send OPEN to IEC or IEEE
 sub_a128_open:
     jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
-    bne lab_a130_not_iec    ;
+    bne lab_a130_not_iec
     jmp sub_a689_open       ;Send OPEN to IEC
 
 lab_a130_not_iec:
@@ -461,6 +462,8 @@ lab_a1ce_not:
 lab_a1dd_done:
     jmp sub_a32a_unlsn      ;Send UNLISTEN to IEC or IEEE
 
+;Wedge command !GET#
+;
 lab_a1e0_cmd_get:
     jsr sub_a8a8_parse_sa_1 ;Parse integer into SA with leading # sign, or Syntax Error
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
@@ -481,7 +484,7 @@ sub_a203:
     ldx #0x00
 
 lab_a205_loop:
-    jsr sub_a141_acptr
+    jsr sub_a141_acptr      ;Read a byte from IEC or IEEE
     cmp #0x0d
     beq lab_a21c
     sta mem_0200,x
@@ -490,7 +493,7 @@ lab_a205_loop:
     bne lab_a205_loop
     jsr sub_a335_untlk      ;Send UNTALK to IEC or IEEE
     ldx #0xb0               ;0xB0 = ?string too long error
-    jmp error
+    jmp error               ;BASIC Print error message offset by X in msgs table and return to prompt
 
 lab_a21c:
     lda #0x00
@@ -508,7 +511,7 @@ lab_a226_cmd_input:
     lda mem_03ff            ;A = copy of current IEC device number
     and #0x7f
     sta mem_0010
-    lda #0x2c
+    lda #',
     sta mem_01ff
     jsr sub_a203
     lda #0x00
@@ -827,11 +830,10 @@ lab_a3ea_loop:
 ;Send TALK to IEC
 sub_a3ef_talk:
     lda #0x40               ;A = 0x40 (TALK)
-    bit 0x20a9              ;sub_a3f2_listen jumps here mid-instruction
+    .byte 0x2c              ;Skip next instruction
 
-;Send LISTEN to IEC
-sub_a3f2_listen = (. - 2)
-   ;lda #0x20               ;A = 0x20 (LISTEN)
+sub_a3f2_listen:
+    lda #0x20               ;A = 0x20 (LISTEN)
 
 lab_a3f4:
     sta mem_87d0_torl       ;Remember if we sent TALK (0x40) or LISTEN (0x20)
@@ -932,9 +934,10 @@ lab_a482_isr04:
 
 lab_a490_nodev:
     lda #0b10000000         ;A = status bit for device not present error
-    bit 0x03a9              ;lab_a449_isr01, lab_a482_isr04 jump here mid-instruction
-lab_a493_frmerr = (. - 2)
-   ;lda #0b00000011         ;A = status bits for timeout while writing XXX
+    .byte 0x2c              ;Skip next instruction
+
+lab_a493_frmerr:
+    lda #0b00000011         ;A = status bits for timeout while writing XXX
 
 lab_a495_csberr:
     jsr sub_a580_st_or_a    ;KERNAL STATUS = STATUS | A
@@ -1010,11 +1013,12 @@ sub_a4e4_untlk:
     jsr sub_a3b9_clklo      ;Set clock line low (inverted)
     jsr sub_a4aa_atnon      ;Assert ATN (turns bit 3 of VIA PORT A on)
     lda #0x5f               ;A = 0x5F (UNTALK)
-    bit 0x3fa9              ;some routines jump here mid-instruction
+    .byte 0x2c              ;Skip next instruction
 
 ;Send UNLISTEN to IEC
-sub_a4ef_unlsn = (. - 2)
-   ;lda #0x3f               ;A = 0x3F (UNLISTEN)
+sub_a4ef_unlsn:
+    lda #0x3f               ;A = 0x3F (UNLISTEN)
+
     jsr sub_a3f7_list1
 
 lab_a4f3_dlabye:
@@ -1124,13 +1128,21 @@ lab_a585:
     rts
 
 ;!@ DOS Wedge Command
+;
+;  !@     Read the command channel and print it.
+;
+;  !@"V"  Send an arbitrary string to the command channel.  It must be quoted.
+;
+;
+;
+;
 lab_a586_cmd_dos:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     bne lab_a591_more
 
     ;Nothing after @ so jump to print device status
-    jmp sub_a83c_status     ;Jump out to Query the device's status and print it
+    jmp sub_a83c_rd_cmd_ch  ;Jump out to Read the command channel and print it
 
     ;Something after the @
 lab_a591_more:
@@ -1158,13 +1170,13 @@ lab_a591_more:
     ;Write TALK byte into M-W command in buffer mem_001f
     ora #0x40               ;Turn on bit 6
     sta [mem_001f],y        ;Store A in mem_001f+7
-                            ;  0x0078: IEC bus TALK command to accept. (Device number OR $40)
+                            ;  0x0078: IEC bus TALK command to accept (device num | 0x40).
 
     ;Write LISTEN byte into M-W command in buffer mem_001f
-    eor #0x60               ;Turn on bits 7 and 6
+    eor #0x60               ;Turn off bit 6, turn on bit 5
     dey                     ;Now Y = 6
     sta [mem_001f],y        ;Store A in mem_001f+6
-                            ;  0x0077: IEC bus LISTEN command to accept. (Device number OR $20))
+                            ;  0x0077: IEC bus LISTEN command to accept (device num | 0x20).
 
     dey                     ;Now Y = 5
 
@@ -1189,16 +1201,18 @@ lab_a5ca_send_dos_cmd:
     lda #0x00
     sta status              ;KERNAL STATUS = 0 (no error)
     jsr sub_a3f2_listen     ;Send LISTEN to IEC
-    lda #0x6f
+    lda #(0x0f | 0x60)      ;A = 0x0F (Command Channel) | 0x60 (SECOND)
     jsr sub_a49c_secnd      ;Send secondary address to IEC for LISTEN
+
     ldy #0x00
 
-lab_a5d8:
-    lda [mem_001f],y
+lab_a5d8_loop:
+    lda [mem_001f],y        ;A = byte from string to send to command channel
     jsr sub_a4d2_ciout      ;Send a byte to IEC
     iny
     cpy fnlen
-    bne lab_a5d8
+    bne lab_a5d8_loop
+
     jmp sub_a4ef_unlsn      ;Send UNLISTEN to IEC
 
 ;Wedge command !SAVE
@@ -1210,7 +1224,7 @@ lab_a5d8:
 ;
 lab_a5e5_cmd_save:
     jsr sub_a5eb_save       ;Try to save the file as requested
-    jmp sub_a83c_status     ;Query the device's status and print it
+    jmp sub_a83c_rd_cmd_ch  ;Read the command channel and print it
 
 sub_a5eb_save:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
@@ -1371,7 +1385,7 @@ lab_a6c6:
     jsr sub_a6f6
     jsr is7802              ;KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
     bne lab_a6d1
-    jsr sub_a83c_status     ;Jump out ot Query the device's status and print it
+    jsr sub_a83c_rd_cmd_ch  ;Jump to Read the command channel and print it
 
 lab_a6d1:
     bit verchk              ;Bit KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
@@ -1599,7 +1613,7 @@ lab_a825:
     ;STOP key pressed
 
 lab_a831_error:
-    jmp sub_a65e_close      ;aSend CLOSE to IEC
+    jmp sub_a65e_close      ;Send CLOSE to IEC
 
 ;Command to change the drive's device number
 mem_a834_m_w:
@@ -1611,12 +1625,12 @@ mem_a834_m_w:
 mem_a834_m_w_len = ( . - mem_a834_m_w)  ;Length of "M-W" command above
 
 ;Dollar sign used with CATALOG command (one byte from above is reused for this)
-mem_a83a_dollr = mem_a834_m_w + 6
+mem_a83a_dollr = ( . - 2)
 mem_a83a_dollr_len = 1
 
-;Query the device's status and print it
+;Read the command channel and print it
 ;Prints like: "00, OK,00,00"
-sub_a83c_status:
+sub_a83c_rd_cmd_ch:
     jsr sub_a65e_close      ;Send CLOSE to IEC
     jsr sub_a3ad_set_fa_st  ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
     jsr sub_a3ef_talk       ;Send TALK to IEC
