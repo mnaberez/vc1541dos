@@ -20,7 +20,7 @@
     chrget = 0x70           ;Subroutine: Get Next Byte of BASIC Text (patched)
     chrgot = 0x76           ;Subroutine: Get the Same Byte of BASIC Text again
     txtptr = 0x77           ;Pointer: Current Byte of BASIC Text
-    status = 0x96           ;KERNAL Status Byte, from which ST is computed
+    status = 0x96           ;KERNAL Status byte for I/O operations
     verchk = 0x9d           ;KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     mem_00a0_c3p0 = 0xa0
     bsour = 0xa5            ;IEEE byte buffer for output (FF means no character)
@@ -302,7 +302,7 @@ sub_a119_jmp_lstksa:
 ;
 lab_a11c_cmd_open:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
-    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
+    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     ;Fall through
@@ -327,7 +327,7 @@ lab_a130_not_iec:
 ;  !CLOSE#2   Close channel with secondary address 2
 ;
 lab_a133_cmd_close:
-    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
+    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     ;Fall through
 
 
@@ -345,7 +345,7 @@ lab_a13e_not_iec:
 sub_a141_acptr:
     jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a149_not_iec
-    jmp sub_a507_acptrs     ;Read a byte from IEC with initial status check
+    jmp sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
 
 lab_a149_not_iec:
     jmp acptr               ;Read a byte from IEEE
@@ -358,7 +358,7 @@ lab_a149_not_iec:
 ;  !CMD#2   Redirect output to secondary address 2 on device FA.
 ;
 lab_a14c_cmd_cmd:
-    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
+    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     lda #<lab_a15f_prscr
     sta prscr
     lda #>lab_a15f_prscr
@@ -406,7 +406,7 @@ lab_a175_cmd_print:
     jsr sub_a32a_unlsn      ;Send UNLISTEN to IEC or IEEE
 
 lab_a18c_not_in_cmd:
-    jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
+    jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr sub_a314_listen     ;Send LISTEN to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a340_lstksa     ;Send secondary address to IEC or IEEE for TALK or LISTEN
@@ -458,7 +458,7 @@ lab_a1dd_done:
 ;Wedge command !GET#
 ;
 lab_a1e0_cmd_get:
-    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
+    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     lda mem_03ff            ;A = copy of current IEC device number
     and #0x7f
@@ -496,7 +496,7 @@ lab_a21c:
     rts
 
 lab_a226_cmd_input:
-    jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
+    jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
@@ -1031,16 +1031,16 @@ lab_a4f9_dlad00:
     sta mem_00a0_c3p0
     jmp sub_a3cb_datahi     ;Set data line high (inverted)
 
-;Read a byte from IEC with initial status check
-;This is different from the C64 KERNAL
+;If STATUS=0 then read a byte from IEC, else return a newline.
+;This is unique to VC-1541-DOS and is not from the C64 KERNAL.
 sub_a507_acptrs:
-    lda status
-    beq sub_a50e_acptr
-    lda #0x0d
+    lda status              ;A = last status
+    beq sub_a50e_acptr      ;Branch to do ACPTR if status is OK
+    ;STATUS != 0
+    lda #0x0d               ;A = newline
     rts
 
 ;Read a byte from IEC
-;This is from the C64 KERNAL
 sub_a50e_acptr:
     sei
     lda #0x00
@@ -1220,10 +1220,11 @@ lab_a5e5_cmd_save:
 sub_a5eb_save:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
-    lda #(1 | 0x60)         ;A = secondary address 1 (SAVE) | 0x60
+    lda #(1 | 0x60)         ;A = secondary address 1 (SAVE) | 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
     ldy fnlen
-    bne lab_a5fc_fnlen_ok
+    bne lab_a5fc_fnlen_ok   ;Branch if filename is not empty
+    ;Filename is empty
     jmp syntax              ;BASIC ?SYNTAX ERROR
 
 lab_a5fc_fnlen_ok:
@@ -1416,7 +1417,8 @@ lab_a6f5_done:
 sub_a6f6_search_load_verify:
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     ldy fnlen
-    bne lab_a6ff_fnlen_ok
+    bne lab_a6ff_fnlen_ok   ;Branch if filename is not empty
+    ;Filename is empty
     clc                     ;XXX seems to never be used
     rts
 
@@ -1428,7 +1430,7 @@ lab_a6ff_fnlen_ok:
     jsr sub_a3ef_talk       ;Send TALK to IEC
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a4bc_tksa       ;Send secondary address to an IEC device commanded to talk
-    jsr sub_a507_acptrs     ;Read a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
     sta salptr
     lda status
     lsr a
@@ -1438,7 +1440,7 @@ lab_a6ff_fnlen_ok:
 
 lab_a71f_found:
     jsr lodmsg              ;KERNAL Print LOADING or VERIFYING if in direct mode
-    jsr sub_a507_acptrs     ;Read a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
     sta salptr+1
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     bne lab_a73e_not_comma
@@ -1477,7 +1479,7 @@ lab_a750_read_loop:
 
 ;STOP key not pressed
 lab_a75e_no_stop:
-    jsr sub_a507_acptrs     ;Read a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
 
     tax                     ;X = byte received from IEC
     lda status
@@ -1584,12 +1586,12 @@ lab_a7e1_fname:
 lab_a7f4_cat_loop:
     sty salptr
 
-    jsr sub_a507_acptrs     ;Read a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
     sta salptr+1
     ldy status
     bne lab_a831_error
 
-    jsr sub_a507_acptrs     ;Read a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
     ldy status
     bne lab_a831_error
 
@@ -1604,7 +1606,7 @@ lab_a7f4_cat_loop:
     jsr chrout              ;KERNAL Send a char to the current output device
 
 lab_a815:
-    jsr sub_a507_acptrs     ;Read a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
     ldx status
     bne lab_a831_error
     tax
@@ -1648,7 +1650,7 @@ sub_a83c_rd_cmd_ch:
     jsr sub_a4bc_tksa       ;Send secondary address to an IEC device commanded to talk
 
 lab_a84a_more:
-    jsr sub_a507_acptrs     ;Read a byte from IEC with initial status check
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
     jsr chrout              ;KERNAL Send a char to the current output device
     cmp #0x0d               ;Is the character a carriage return?
     bne lab_a84a_more       ;  No: loop for another character
@@ -1720,17 +1722,17 @@ sub_a8a0_cmp_fa:
     cmp fa                  ;Compare to KERNAL current device number
     rts
 
-;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
+;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
 sub_a8a8_parse_sa_1:
     lda #'#
     jsr isaequ              ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
     ;Fall through
 
-;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
+;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
 sub_a8ad_parse_sa_2:
     jsr sub_a3ad_set_fa_st  ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
     jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
-    txa
+    txa                     ;A = secondary address
     ora #0x60               ;OR secondary address with 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
     rts
