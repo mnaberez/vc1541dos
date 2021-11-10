@@ -30,37 +30,26 @@ VC-1541-DOS is implemented as a BASIC wedge.  Activate the wedge with ``sys 4096
 
 All commands in VC-1541-DOS wedge are prefixed with a `!` such as `!load"filename"`.  IEEE-488 and IEC devices can be used at the same time but only the `!` prefixed commands can access an IEC device.  Although the `!` commands share the same names as their CBM BASIC counterparts, they do not work the same.  
 
-### Commands that support only IEC
-
-Location `1022` holds the active IEC device number used by VC-1541-DOS.  When the wedge is installed, it defaults to `8`.  To use another IEC device such as `9`, enter `poke 1022,9`.
+Location `1022` holds the current IEC device number used by VC-1541-DOS.  When the wedge is installed, it defaults to `8`.  To use another IEC device such as `9`, enter `poke 1022,9`.
 
 | Command | Description |
 | - | - |
 | `!q` | Quit.  Uninstalls the VC-1541-DOS wedge. |
-| `!@` | Read the command channel on the active IEC device (location `1022`) and print it. |
-| `!@"s0:filename"` | Send an arbitrary string to the command channel on the active IEC device.  The command must be quoted. |
-| `!u9` | Temporarily change the device number of the active IEC device to the given device number.  This sends an `M-W` command to overwrite locations `$77` and `$78` in the drive, as described in the 1541 User's Guide.  Location `1022` will also be updated with the new device number. |
-| `!catalog` | Read the directory on the active IEC device.  This is equivalent to `!catalog"$"`. |
-| `!catalog"$0:foo*"` | Read the directory on the active IEC device with the given search pattern.  Enter the search pattern the same as you would with `load"$0:foo*",8` in CBM BASIC.` |
-| `!load"filename"` | Load a program from the active IEC device into the BASIC program area. |
-|  `!load"filename",027a` | Load a program from the active IEC device starting at the given addres.  Only a start address is supported.  It must be four hexadecimal digits. | |
-| `!verify"filename"` | Verify a program on the active IEC device against the BASIC program area. |
-| `!verify"filename",027a` | Verify a program on the active IEC device against the given addres.  Only a start address is supported.  It must be four hexadecimal digits. |
-| `!save"filename"` | Save a BASIC program to the active IEC device. |
+| `!@` | Read the command channel on the current IEC device (location `1022`) and print it. |
+| `!@"s0:filename"` | Send an arbitrary string to the command channel on the current IEC device.  The command must be quoted. |
+| `!u9` | Temporarily change the device number of the current IEC device to the given device number.  This sends an `M-W` command to overwrite locations `$77` and `$78` in the drive, as described in the 1541 User's Guide.  Location `1022` will also be updated with the new device number. |
+| `!catalog` | Read the directory on the current IEC device.  This is equivalent to `!catalog"$"`. |
+| `!catalog"$0:foo*"` | Read the directory on the current IEC device with the given search pattern.  Enter the search pattern the same as you would with `load"$0:foo*",8` in CBM BASIC.` |
+| `!load"filename"` | Load a program from the current IEC device into the BASIC program area. |
+|  `!load"filename",027a` | Load a program from the current IEC device starting at the given addres.  Only a start address is supported.  It must be four hexadecimal digits. | |
+| `!verify"filename"` | Verify a program on the current IEC device against the BASIC program area. |
+| `!verify"filename",027a` | Verify a program on the current IEC device against the given addres.  Only a start address is supported.  It must be four hexadecimal digits. |
+| `!save"filename"` | Save a BASIC program to the current IEC device. |
 | `!save"filename",027a,0300` |  Save memory from 0x027A-0x02FF inclusive.  Both the start and the end addresses are required and must be four hexadecimal digits. |
-
-### Commands that support IEC and IEEE-488
-
-The `!` commands in this section support both IEC and IEEE-488 devices.  It uses the active IEC device (location `1022`) and location `212` to determine if it should use IEC.  Location `212` is normally used by the CBM KERNAL to store the current device number.  On power up, it contains `0`.  It is updated after device accesses, e.g. after executing `catalog u9`, `peek(212)` will return `9`.  You can also `poke` a number into `212` yourself.  
-
-If `peek(1022)` equals `peek(212)` then VC-1541-DOS will use the active IEC device for these commands.  Otherwise, IEEE will be used.  Therefore, to use these commands with the active IEC device, execute `poke212,peek(1022)` first.
-
-| Command | Description |
-| - | - |
-| `!open#2,"filename"` | Open a file with the given secondary address and filename on the device in location 212. |
-| `!open#2,""` | Open a channel without a filename to the given secondary address on the device in location 212.  The comma and the empty quotes are required. |
-| `!cmd#2` | Redirect output to the given secondary address on the device in location 212. |
-| `!print#2` | Print a blank line to the given secondary address on the device in location 212.  If `!cmd#` was started, it is automatically ended first. |
+| `!open#2,"filename"` | Open a file with the given secondary address on the current IEC device. |
+| `!open#2,""` | Open a channel without a filename to the given secondary address on the current IEC device.  The comma and the empty quotes are required. |
+| `!cmd#2` | Redirect output to the given secondary address on the current IEC device. |
+| `!print#2` | Print a blank line to the given secondary address on the current IEC device.  If `!cmd#` was started, it is automatically ended first. |
 
 ### Additional Entry Points
 

@@ -285,7 +285,6 @@ lab_a10f_cmd_load:
 ;
 lab_a112_cmd_verify:
     lda #0xff              ;A = FF (VERIFY)
-
     sta verchk             ;Store in KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     jmp lab_a6b7_load_or_verify
 
@@ -295,19 +294,16 @@ sub_a119_jmp_lstksa:
 
 ;Wedge command !OPEN
 ;
-;Open a channel to the device number in FA ($D4 / 212) with the
-;given secondary address.  The device may be IEC or IEEE.  IEC
-;is used if FA equals the the active IEC device number in mem_03fe.
+;Open a channel to the current IEC device on the given secondary address.
 ;
-;  OPEN#2,"FILENAME"     Open a file with secondary address 2 on device FA
+;  OPEN#2,"FILENAME"     Open a file with secondary address 2
 ;
-;  OPEN#2,""             Open a channel to secondary address 2 on device FA
-;                        without sending a filename.  The comma and empty filename
-;                        are required.
+;  OPEN#2,""             Open a channel to secondary address 2 without sending
+;                        a filename.  The comma and empty filename are required.
 ;
 lab_a11c_cmd_open:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
-    jsr sub_a8a8_parse_sa_1 ;Parse integer into SA with leading # sign, or Syntax Error
+    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     ;Fall through
@@ -325,14 +321,12 @@ lab_a130_not_iec:
 
 ;Wedge command !CLOSE
 ;
-;Close a channel on the device number in FA ($D4 / 212) with the
-;given secondary address.  The device may be IEC or IEEE.  IEC
-;is used if FA equals the the active IEC device number in mem_03fe.
+;Close a channel on the current IEC device with the given secondary address.
 ;
-;  !CLOSE#2   Close channel with secondary address 2 on device FA
+;  !CLOSE#2   Close channel with secondary address 2
 ;
 lab_a133_cmd_close:
-    jsr sub_a8a8_parse_sa_1 ;Parse integer into SA with leading # sign, or Syntax Error
+    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
     ;Fall through
 
 
@@ -358,14 +352,12 @@ lab_a149_not_iec:
 
 ;Wedge command !CMD
 ;
-;Redirect output to the device number in FA ($D4 / 212) on the
-;given secondary address.  The device may be IEC or IEEE.  IEC
-;is used if FA equals the the active IEC device number in mem_03fe.
+;Redirect output to the current IEC device on the given secondary address.
 ;
 ;  !CMD#2   Redirect output to secondary address 2 on device FA.
 ;
 lab_a14c_cmd_cmd:
-    jsr sub_a8a8_parse_sa_1 ;Parse integer into SA with leading # sign, or Syntax Error
+    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
     lda #<lab_a15f_prscr
     sta prscr
     lda #>lab_a15f_prscr
@@ -413,7 +405,7 @@ lab_a175_cmd_print:
     jsr sub_a32a_unlsn      ;Send UNLISTEN to IEC or IEEE
 
 lab_a18c_not_in_cmd:
-    jsr sub_a8ad_parse_sa_2 ;Parse integer into SA without leading #, or Syntax Error
+    jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
     jsr sub_a314_listen     ;Send LISTEN to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a340_lstksa     ;Send secondary address to IEC or IEEE for TALK or LISTEN
@@ -465,7 +457,7 @@ lab_a1dd_done:
 ;Wedge command !GET#
 ;
 lab_a1e0_cmd_get:
-    jsr sub_a8a8_parse_sa_1 ;Parse integer into SA with leading # sign, or Syntax Error
+    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     lda mem_03ff            ;A = copy of current IEC device number
     and #0x7f
@@ -503,7 +495,7 @@ lab_a21c:
     rts
 
 lab_a226_cmd_input:
-    jsr sub_a8ad_parse_sa_2 ;Parse integer into SA without leading #, or Syntax Error
+    jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
@@ -765,12 +757,13 @@ sub_a390_setup:
     sta via_timer_2_lo
     sta via_timer_2_hi
     sta via_acr
-    lda #0x2c
-    sta tapwct
+    lda #',
+    sta tapwct              ;Used with !LOAD and !VERIFY commands
     lda #0x17
     sta via_port_a
     lda #0x80
     sta mem_00fd_r2d2
+    ;Fall through
 
 ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
 sub_a3ad_set_fa_st:
@@ -1133,16 +1126,13 @@ lab_a585:
 ;
 ;  !@"V"  Send an arbitrary string to the command channel.  It must be quoted.
 ;
-;
-;
-;
 lab_a586_cmd_dos:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     bne lab_a591_more
 
     ;Nothing after @ so jump to print device status
-    jmp sub_a83c_rd_cmd_ch  ;Jump out to Read the command channel and print it
+    jmp sub_a83c_rd_cmd_ch  ;Jump out to Read the IEC command channel and print it
 
     ;Something after the @
 lab_a591_more:
@@ -1224,7 +1214,7 @@ lab_a5d8_loop:
 ;
 lab_a5e5_cmd_save:
     jsr sub_a5eb_save       ;Try to save the file as requested
-    jmp sub_a83c_rd_cmd_ch  ;Read the command channel and print it
+    jmp sub_a83c_rd_cmd_ch  ;Read the IEC command channel and print it
 
 sub_a5eb_save:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
@@ -1232,10 +1222,10 @@ sub_a5eb_save:
     lda #(1 | 0x60)         ;A = secondary address 1 (SAVE) | 0x60
     sta sa                  ;Set SA (KERNAL current secondary address)
     ldy fnlen
-    bne lab_a5fc
+    bne lab_a5fc_fnlen_ok
     jmp syntax              ;BASIC ?SYNTAX ERROR
 
-lab_a5fc:
+lab_a5fc_fnlen_ok:
     jsr sub_a689_open       ;Send OPEN to IEC
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     bne lab_a623_no_addr    ;Branch if it's not a command
@@ -1372,7 +1362,8 @@ lab_a6aa:
     bne lab_a6aa
     jmp sub_a4ef_unlsn      ;Send UNLISTEN to IEC
 
-;Called with A=0 for LOAD, A=0xFF for VERIFY
+;Wedge commands !LOAD and !VERIFY set VERCHK=0 for LOAD
+;or VERCHK=0xFF for VERIFY then jump directly here
 lab_a6b7_load_or_verify:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
@@ -1382,10 +1373,10 @@ lab_a6b7_load_or_verify:
     jsr chrget
 
 lab_a6c6:
-    jsr sub_a6f6
+    jsr sub_a6f6_search_load_verify
     jsr is7802              ;KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
     bne lab_a6d1
-    jsr sub_a83c_rd_cmd_ch  ;Jump to Read the command channel and print it
+    jsr sub_a83c_rd_cmd_ch  ;Read the IEC command channel and print it
 
 lab_a6d1:
     bit verchk              ;Bit KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
@@ -1411,14 +1402,14 @@ lab_a6e5:
 lab_a6f5_done:
     rts
 
-sub_a6f6:
+sub_a6f6_search_load_verify:
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     ldy fnlen
-    bne lab_a6ff
-    clc
+    bne lab_a6ff_fnlen_ok
+    clc                     ;XXX seems to never be used
     rts
 
-lab_a6ff:
+lab_a6ff_fnlen_ok:
     jsr srchng              ;KERNAL Print SEARCHING if in direct mode
     lda #(0 | 0x60)         ;A = secondary address 0 (LOAD) | 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
@@ -1431,10 +1422,10 @@ lab_a6ff:
     lda status
     lsr a
     lsr a
-    bcc lab_a71f
+    bcc lab_a71f_found
     jmp notfnd              ;KERNAL ?FILE NOT FOUND ERROR
 
-lab_a71f:
+lab_a71f_found:
     jsr lodmsg              ;KERNAL Print LOADING or VERIFYING if in direct mode
     jsr sub_a507_acptrs     ;Read a byte from IEC with initial status check
     sta salptr+1
@@ -1447,46 +1438,52 @@ lab_a71f:
     sta salptr
     lda ml1ptr+1
     sta salptr+1
-    lda #0x3b
+    lda #';
     sta tapwct
 
 lab_a73e_not_comma:
     lda tapwct
     cmp #',
-    bne lab_a750
+    bne lab_a750_read_loop
     lda verchk              ;A = KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
-    bne lab_a750            ;Branch if perfoming VERIFY
+    bne lab_a750_read_loop  ;Branch if perfoming VERIFY
+    ;Performing LOAD
     lda salptr
     sta txttab
     lda salptr+1
     sta txttab+1
 
-lab_a750:
+lab_a750_read_loop:
     lda #0b11111101         ;A = mask off status bit 1 (timeout error)
     and status
     sta status              ;Store STATUS with timeout error cleared
 
     jsr sub_a89a_chk_stop   ;STOP key pressed?  (Returns Z=1 if so.)
-    bne lab_a75e_more       ;  No: branch to keep going
+    bne lab_a75e_no_stop    ;  No: branch to keep going
 
     ;STOP key pressed
-    jmp sub_a65e_close      ;Send CLOSE to IEC
+    jmp sub_a65e_close      ;Jump out to Send CLOSE to IEC
 
 ;STOP key not pressed
-lab_a75e_more:
+lab_a75e_no_stop:
     jsr sub_a507_acptrs     ;Read a byte from IEC with initial status check
-    tax
+
+    tax                     ;X = byte received from IEC
     lda status
     lsr a
     lsr a
-    bcs lab_a750
-    txa
+    bcs lab_a750_read_loop
+    txa                     ;A = byte received from IEC
+
     ldy verchk              ;Y = KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
-    beq lab_a794            ;Branch if performing LOAD
+    beq lab_a794_sta_byte   ;Branch if performing LOAD
+
     ;Performing VERIFY
     ldy #0x00
     cmp [salptr],y
-    beq lab_a796
+    beq lab_a796_next_byte  ;Branch if bytes are equal
+
+    ;VERIFY failed
     lda #0b00010000         ;A = status bit for VERIFY error
     jsr sub_a580_st_or_a    ;KERNAL STATUS = STATUS | A
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
@@ -1501,13 +1498,15 @@ lab_a75e_more:
     ldy #0x6e               ;Y = 0x6E (?VERIFY ERROR)
     jmp krnerr              ;KERNAL ?<message> ERROR from KERNAL error in Y
 
-lab_a794:
+lab_a794_sta_byte:
     sta [salptr],y
 
-lab_a796:
+lab_a796_next_byte:
     jsr sub_a682_inc_salptr ;Increment SALPTR
     bit status
-    bvc lab_a750
+    bvc lab_a750_read_loop  ;Branch if EOF not yet reached
+
+    ;EOF reached
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
     jsr sub_a65e_close      ;Send CLOSE to IEC
     lda tapwct
@@ -1628,7 +1627,7 @@ mem_a834_m_w_len = ( . - mem_a834_m_w)  ;Length of "M-W" command above
 mem_a83a_dollr = ( . - 2)
 mem_a83a_dollr_len = 1
 
-;Read the command channel and print it
+;Read the IEC command channel and print it
 ;Prints like: "00, OK,00,00"
 sub_a83c_rd_cmd_ch:
     jsr sub_a65e_close      ;Send CLOSE to IEC
@@ -1710,12 +1709,13 @@ sub_a8a0_cmp_fa:
     cmp fa                  ;Compare to KERNAL current device number
     rts
 
-;Parse integer into SA with leading # sign, or ?SYNTAX ERROR
+;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
 sub_a8a8_parse_sa_1:
     lda #'#
     jsr isaequ              ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
+    ;Fall through
 
-;Parse integer into SA without leading #, or ?SYNTAX ERROR
+;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, ST=0
 sub_a8ad_parse_sa_2:
     jsr sub_a3ad_set_fa_st  ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
     jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
