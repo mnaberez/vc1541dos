@@ -46,8 +46,7 @@ Location `1022` holds the current IEC device number used by VC-1541-DOS.  When t
 | `!verify"filename",027a` | Verify a program on the current IEC device against the given addres.  Only a start address is supported.  It must be four hexadecimal digits. |
 | `!save"filename"` | Save a BASIC program to the current IEC device. |
 | `!save"filename",027a,0300` |  Save memory from 0x027A-0x02FF inclusive.  Both the start and the end addresses are required and must be four hexadecimal digits. |
-| `!open#2,"filename"` | Open a file with the given secondary address on the current IEC device. |
-| `!open#2,""` | Open a channel without a filename to the given secondary address on the current IEC device.  The comma and the empty quotes are required. |
+| `!open#2,"filename"` | Open a file with the given secondary address on the current IEC device.  The comma and the quotes are required.  The filename can not be empty. |
 | `!cmd#2` | Redirect output to the given secondary address on the current IEC device. |
 | `!print#2` | Print a blank line to the given secondary address on the current IEC device.  If `!cmd#` was started, it is automatically ended first. |
 

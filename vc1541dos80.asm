@@ -284,7 +284,8 @@ lab_a10f_cmd_load:
 ;                           All four digits are required.  An end address is not supported.
 ;
 lab_a112_cmd_verify:
-    lda #0xff              ;A = FF (VERIFY)
+    lda #0xff              ;A = 0xFF (VERIFY) for VERCHK.  It's normally 0 or 1 but we set
+                           ;it to 0xFF so we can test for verify with "bmi verchk" later.
     sta verchk             ;Store in KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     jmp lab_a6b7_load_or_verify
 
@@ -296,10 +297,8 @@ sub_a119_jmp_lstksa:
 ;
 ;Open a channel to the current IEC device on the given secondary address.
 ;
-;  OPEN#2,"FILENAME"     Open a file with secondary address 2
-;
-;  OPEN#2,""             Open a channel to secondary address 2 without sending
-;                        a filename.  The comma and empty filename are required.
+;  OPEN#2,"FILENAME"     Open a file with secondary address 2.  The comma and the quotes
+;                        are required.  The filename can not be empty.
 ;
 lab_a11c_cmd_open:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
@@ -308,6 +307,8 @@ lab_a11c_cmd_open:
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     ;Fall through
 
+    ;Note: Since sub_a689_open does nothing if the filename is zero length,
+    ;it's not possible to !OPEN a channel without a filename.
 
 ;Send OPEN to IEC or IEEE
 sub_a128_open:
@@ -1327,7 +1328,7 @@ sub_a682_inc_salptr:
 lab_a688_nc:
     rts
 
-;Send filename to IEC
+;Send OPEN to IEC
 sub_a689_open:
     lda sa                  ;A = KERNAL current secondary address
     bpl lab_a68f
@@ -1338,7 +1339,8 @@ lab_a68d_error:
 
 lab_a68f:
     ldy fnlen
-    beq lab_a68d_error
+    beq lab_a68d_error      ;Branch to do nothing if filename is empty
+    ;Filename is not empty
     lda #0x00
     sta status              ;KERNAL STATUS = 0 (no error)
     jsr sub_a3f2_listen     ;Send LISTEN to IEC
@@ -1354,12 +1356,13 @@ lab_a68f:
 lab_a6a8_present:
     ldy #0x00
 
-lab_a6aa:
-    lda [fnadr],y
+lab_a6aa_loop:
+    lda [fnadr],y           ;A = byte from filename
     jsr sub_a4d2_ciout      ;Send a byte to IEC
     iny
     cpy fnlen
-    bne lab_a6aa
+    bne lab_a6aa_loop       ;Loop until entire filename is sent
+    ;Filename has been sent
     jmp sub_a4ef_unlsn      ;Send UNLISTEN to IEC
 
 ;Wedge commands !LOAD and !VERIFY set VERCHK=0 for LOAD
@@ -1368,17 +1371,22 @@ lab_a6b7_load_or_verify:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     cmp #';                 ;Is the byte at txtptr+0 a semicolon?
-    bne lab_a6c6
-    sta tapwct
-    jsr chrget
+    bne lab_a6c6_not_semi
 
-lab_a6c6:
-    jsr sub_a6f6_search_load_verify
+    ;Byte at txtptr+0 is a semicolon
+    sta tapwct              ;Store the semicolon
+    jsr chrget              ;Consume the semicolon
+
+lab_a6c6_not_semi:
+    jsr sub_a6f6_search_load_verify ;Evaluate expression as filename, print SEARCHING if direct
+                                    ;mode, then try to load or verify the file.  Prints the error
+                                    ;message if something goes wrong.
+
     jsr is7802              ;KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
-    bne lab_a6d1
+    bne lab_a6d1_not_0x02
     jsr sub_a83c_rd_cmd_ch  ;Read the IEC command channel and print it
 
-lab_a6d1:
+lab_a6d1_not_0x02:
     bit verchk              ;Bit KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     bmi lab_a6f5_done       ;Branch if to finish if perfoming VERIFY
                             ;  (BMI works because we actually set verchk to 0xFF)
@@ -1387,10 +1395,10 @@ lab_a6d1:
     ldy #0xae               ;A = index to message "READY."
     jsr prmsg               ;KERNAL Print a message from 0xF000 table at offset Y
     jsr is7802              ;KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
-    bne lab_a6e5
-    jmp resbas              ;BASIC restart execution to start, clear, and chain
+    bne lab_a6e5_not_0x02
+    jmp resbas              ;Jump out to BASIC restart execution to start, clear, and chain
 
-lab_a6e5:
+lab_a6e5_not_0x02:
     jsr rsgetc              ;BASIC Reset GETCHR to start of program
     jsr restor              ;BASIC Perform RESTORE
     ldx #0x16
@@ -1402,6 +1410,9 @@ lab_a6e5:
 lab_a6f5_done:
     rts
 
+;Evaluate expression as filename, print SEARCHING if direct mode,
+;then try to load or verify the file.  Prints the error message
+;if something goes wrong.
 sub_a6f6_search_load_verify:
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     ldy fnlen
@@ -1413,7 +1424,7 @@ lab_a6ff_fnlen_ok:
     jsr srchng              ;KERNAL Print SEARCHING if in direct mode
     lda #(0 | 0x60)         ;A = secondary address 0 (LOAD) | 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
-    jsr sub_a689_open       ;Send OPEN to IEC
+    jsr sub_a689_open       ;Send OPEN to IEC (does nothing if filename is empty)
     jsr sub_a3ef_talk       ;Send TALK to IEC
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a4bc_tksa       ;Send secondary address to an IEC device commanded to talk
