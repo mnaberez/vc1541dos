@@ -71,7 +71,7 @@
     ntostr = 0xcf93         ;BASIC Convert number to string in 0x100
     sub_d52e = 0xd52e
     sub_d717 = 0xd717
-    prcrlf = 0xd534         ;BASIC Print carriage return and linefeed
+    prtcr = 0xd534          ;BASIC Print carriage return
     hexit = 0xd78d          ;MONITOR Evaluate char in A to a hex nibble
     lab_e787 = 0xe787       ;EDITOR Default routine for PRSCR vector
 
@@ -136,7 +136,7 @@ sub_a036_install:
     sta chrget+2
     lda #0x08
     sta mem_03fe            ;Current unit number on IEC bus = 8
-    jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
     lda #<banner
     ldy #>banner
     jmp prstr               ;BASIC Print null-terminated string at A=addr low, Y=addr hi
@@ -306,7 +306,7 @@ sub_a119_jmp_lstksa:
 ;                        are required.  The filename can not be empty.
 ;
 lab_a11c_wedge_open:
-    jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
     jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
@@ -355,7 +355,7 @@ lab_a13e_not_iec:
 sub_a141_acptrs:
     jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a149_not_iec
-    jmp sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
+    jmp sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
 
 lab_a149_not_iec:
     jmp acptr               ;Read a byte from IEEE
@@ -490,18 +490,21 @@ sub_a203:
 
 lab_a205_loop:
     jsr sub_a141_acptrs     ;Read a byte from IEC or IEEE.  On IEC only, check STATUS first:
-                            ;  If STATUS=0 then read a byte from IEC, else return a newline.
+                            ;  If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
     cmp #0x0d
-    beq lab_a21c
+    beq lab_a21c_cr         ;Branch if a carriage return was received or if an error occurred
+
     sta monbuf,x            ;Store in input buffer used by MONITOR (0x200-0x250)
     inx
     cpx #0x51
-    bne lab_a205_loop
+    bne lab_a205_loop       ;Branch to get another byte if still within buffer size
+
+    ;Next byte would exceed MONBUF buffer size
     jsr sub_a335_untlk      ;Send UNTALK to IEC or IEEE
-    ldx #0xb0               ;0xB0 = ?string too long error
+    ldx #0xb0               ;X = 0xB0 (?STRING TOO LONG ERROR)
     jmp error               ;BASIC Print error message offset by X in msgs table and return to prompt
 
-lab_a21c:
+lab_a21c_cr:
     lda #0x00
     sta monbuf,x            ;Store in input buffer used by MONITOR (0x200-0x250)
     ldx #0xff
@@ -541,12 +544,15 @@ lab_a24b_input_loop:
     ldy inpptr+1
     stx txtptr
     sty txtptr+1
+
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     bne lab_a285
+
     bit readop              ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ
     bvc lab_a277
+
     jsr sub_a141_acptrs     ;Read a byte from IEC or IEEE.  On IEC only, check STATUS first:
-                            ;  If STATUS=0 then read a byte from IEC, else return a newline.
+                            ;  If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
     sta monbuf              ;Store in input buffer used by MONITOR (0x200-0x250)
     ldx #0xff
     ldy #0x01
@@ -707,7 +713,7 @@ sub_a345_second:
     jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a34f_not_iec
     pla
-    jmp sub_a49c_second     ;Send secondary address to IEC for LISTEN
+    jmp sub_a49c_second     ;Send secondary address for LISTEN to IEC
 
 lab_a34f_not_iec:
     pla
@@ -720,7 +726,7 @@ sub_a353_tksa:
     jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a35d_not_iec
     pla
-    jmp sub_a4bc_tksa       ;Send secondary address to an IEC device commanded to talk
+    jmp sub_a4bc_tksa       ;Send secondary address for TALK to IEC
 
 lab_a35d_not_iec:
     pla
@@ -770,7 +776,7 @@ lab_a38c_not_iec:
     jmp untorl              ;KERNAL Send UNTALK or UNLISTEN to IEEE
 
 
-;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
+;Set up VIA, set FA = IEC device, STATUS = 0
 sub_a390_setup:
     lda #0x3f
     sta via_ddrb
@@ -959,7 +965,7 @@ lab_a495_csberr:
     clc
     bcc lab_a4f3_dlabye     ;Branch always
 
-;Send secondary address to IEC for LISTEN
+;Send secondary address for LISTEN to IEC
 sub_a49c_second:
     sta bsour
     jsr sub_a419_isoura
@@ -987,7 +993,7 @@ sub_a4b3_ieee_aton:
     sta via_portb
     rts
 
-;Send secondary address to an IEC device commanded to talk
+;Send secondary address for TALK to IEC
 sub_a4bc_tksa:
     sta bsour
     jsr sub_a419_isoura
@@ -1051,13 +1057,13 @@ lab_a4f9_dlad00:
     sta mem_00a0_c3p0
     jmp sub_a3cb_datahi     ;Set data line high (inverted)
 
-;If STATUS=0 then read a byte from IEC, else return a newline.
+;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
 ;This is unique to VC-1541-DOS and is not from the C64 KERNAL.
 sub_a507_acptrs:
     lda status              ;A = last status
     beq sub_a50e_acptr      ;Branch to do ACPTR if status is OK
     ;STATUS != 0
-    lda #0x0d               ;A = newline
+    lda #0x0d               ;A = carriage return
     rts
 
 ;Read a byte from IEC
@@ -1148,7 +1154,7 @@ lab_a585:
 ;  !@"V"  Send an arbitrary string to the command channel.  It must be quoted.
 ;
 lab_a586_wedge_dos:
-    jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     bne lab_a591_more
 
@@ -1213,7 +1219,7 @@ lab_a5ca_send_dos_cmd:
     sta status              ;KERNAL STATUS = 0 (no error)
     jsr sub_a3f2_listen     ;Send LISTEN to IEC
     lda #(0x0f | 0x60)      ;A = 0x0F (Command Channel) | 0x60 (SECOND)
-    jsr sub_a49c_second     ;Send secondary address to IEC for LISTEN
+    jsr sub_a49c_second     ;Send secondary address for LISTEN to IEC
 
     ldy #0x00
 
@@ -1238,7 +1244,7 @@ lab_a5e5_wedge_save:
     jmp sub_a83c_rd_cmd_ch  ;Read the IEC command channel and print it
 
 sub_a5eb_save:
-    jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     lda #(1 | 0x60)         ;A = secondary address 1 (SAVE) | 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
@@ -1286,7 +1292,7 @@ lab_a623_no_addr:
 lab_a633_with_addr:
     jsr sub_a3f2_listen     ;Send LISTEN to IEC
     lda sa                  ;A = KERNAL current secondary address
-    jsr sub_a49c_second     ;Send secondary address to IEC for LISTEN
+    jsr sub_a49c_second     ;Send secondary address for LISTEN to IEC
     ldy #0x00               ;Y is always 0 in lab_a647_loop below
     lda salptr
     jsr sub_a4d2_ciout      ;Send a byte to IEC
@@ -1319,7 +1325,7 @@ sub_a65e_close:
     lda sa                  ;A = KERNAL current secondary address
     and #0b11101111         ;AND 0xEF so high nibble be OR'd to become 0xE
     ora #0b11100000         ;OR  0xE0 = CLOSE
-    jsr sub_a49c_second     ;Send secondary address to IEC for LISTEN
+    jsr sub_a49c_second     ;Send secondary address for LISTEN to IEC
     jsr sub_a4ef_unlsn      ;Send UNLISTEN to IEC
 
 lab_a671_done:
@@ -1367,7 +1373,7 @@ lab_a68f:
     jsr sub_a3f2_listen     ;Send LISTEN to IEC
     lda sa                  ;A = KERNAL current secondary address
     ora #0xf0               ;OR it with 0xF0 = OPEN
-    jsr sub_a49c_second     ;Send secondary address to IEC for LISTEN
+    jsr sub_a49c_second     ;Send secondary address for LISTEN to IEC
     lda status              ;A = KERNAL status
     bpl lab_a6a8_present    ;Branch if device not present error bit = 0
     ;device not present
@@ -1389,7 +1395,7 @@ lab_a6aa_loop:
 ;Wedge commands !LOAD and !VERIFY set VERCHK=0 for LOAD
 ;or VERCHK=0xFF for VERIFY then jump directly here
 lab_a6b7_load_or_verify:
-    jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     cmp #';                 ;Is the byte at txtptr+0 a semicolon?
     bne lab_a6c6_not_semi
@@ -1449,10 +1455,10 @@ lab_a6ff_fnlen_ok:
     jsr sub_a689_open       ;Send OPEN to IEC (does nothing if filename is empty)
     jsr sub_a3ef_talk       ;Send TALK to IEC
     lda sa                  ;A = KERNAL current secondary address
-    jsr sub_a4bc_tksa       ;Send secondary address to an IEC device commanded to talk
+    jsr sub_a4bc_tksa       ;Send secondary address for TALK to IEC
 
-    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
-    sta salptr              ;Store program's start address low (or newline) in pointer low
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
+    sta salptr              ;Store program's start address low (or the CR) in pointer low
 
     lda status              ;A = status
     lsr a                   ;Bit 1 (timeout error) -> Bit 0
@@ -1464,8 +1470,8 @@ lab_a6ff_fnlen_ok:
 lab_a71f_no_tmo:
     jsr lodmsg              ;KERNAL Print LOADING or VERIFYING if in direct mode
 
-    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
-    sta salptr+1            ;Store program's start address high (or newline) in pointer high
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
+    sta salptr+1            ;Store program's start address high (or the CR) in pointer high
 
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     bne lab_a73e_not_comma  ;No start address specified in command, branch to keep salptr
@@ -1508,7 +1514,7 @@ lab_a750_read_loop:
 
 ;STOP key not pressed
 lab_a75e_no_stop:
-    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
 
     tax                     ;X = byte received from IEC
     lda status              ;A = status
@@ -1530,7 +1536,7 @@ lab_a75e_no_stop:
     jsr sub_a580_st_or_a    ;KERNAL STATUS = STATUS | A
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
     jsr sub_a65e_close      ;Send CLOSE to IEC
-    jsr prcrlf              ;BASIC Print carriage return and linefeed
+    jsr prtcr               ;BASIC Print carriage return
     lda salptr
     sta ml1ptr
     lda salptr+1
@@ -1583,7 +1589,7 @@ sub_a7b6_eval_fname:
 ;  !CATALOG"filename"   List directory with filename
 ;
 lab_a7c7_wedge_catalog:
-    jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     beq lab_a7d5_no_fname   ;No filename, so branch to set the default of "$"
 
@@ -1607,54 +1613,79 @@ lab_a7e1_fname:
     sta sa                  ;Set SA (KERNAL current secondary address)
     jsr sub_a689_open       ;Send OPEN to IEC
     jsr sub_a3ef_talk       ;Send TALK to IEC
-    jsr sub_a4bc_tksa       ;Send secondary address to an IEC device commanded to talk
+    jsr sub_a4bc_tksa       ;Send secondary address for TALK to IEC
+
     lda #0x00
     sta status              ;KERNAL STATUS = 0 (no error)
-    ldy #0x03
 
-lab_a7f4_cat_loop:
-    sty salptr
+    ;salptr is not used as a pointer below, rather as two temporary locations:
+    ;  salptr:   counts down bytes (used with Y register)
+    ;  salptr+1: low byte received from IEC
 
-    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
-    sta salptr+1
+    ldy #0x03               ;Countdown = 3, meaning 6 bytes will be read:
+                            ;  Program start address low, high
+                            ;  Next BASIC line address low, high
+                            ;  Current BASIC line number low, high
+
+;Read up to BASIC line number (block size of program), then print it
+lab_a7f4_line_loop:
+    sty salptr              ;Store Y in byte countdown
+
+    ;Receive low byte from IEC, store in salptr+1
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
+    sta salptr+1            ;Store low byte received from IEC (or the CR)
     ldy status
-    bne lab_a831_error
+    bne lab_a831_error      ;Branch if STATUS != 0
 
-    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
+    ;Receive high byte from IEC, leave it in A
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
     ldy status
-    bne lab_a831_error
+    bne lab_a831_error      ;Branch if STATUS != 0
 
-    ldy salptr
-    dey
-    bne lab_a7f4_cat_loop
+    ;Loop until line number has been read
+    ldy salptr              ;Y = byte countdown
+    dey                     ;Decrement countdown
+    bne lab_a7f4_line_loop  ;Keep going until line number has been read
 
-    ldx salptr+1
+    ;Print line number (block size of progam)
+                            ;A still contains the high byte received from IEC
+    ldx salptr+1            ;X = low byte received from IEC
     jsr linprt              ;BASIC Print 256*A + X in decimal
 
+    ;Print space after line number
     lda #0x20               ;A = SPACE character
     jsr chrout              ;KERNAL Send a char to the current output device
 
-lab_a815:
-    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
+;Read and print BASIC line contents (program filename and type)
+lab_a815_fname_loop:
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
     ldx status
-    bne lab_a831_error
-    tax
-    beq lab_a825
-    jsr chrout              ;KERNAL Send a char to the current output device
-    jmp lab_a815
+    bne lab_a831_error      ;Branch if STATUS != 0
 
-lab_a825:
+    tax                     ;X = A (byte received), just to set Z flag
+    beq lab_a825_eol        ;Branch if byte received = 0, meaning end of BASIC line
+
+    ;Print byte in BASIC line
+    jsr chrout              ;KERNAL Send a char to the current output device
+    jmp lab_a815_fname_loop
+
+;End of current BASIC line reached
+lab_a825_eol:
+    ;Print carriage return after line
     lda #0x0d               ;A = carriage return
     jsr chrout              ;KERNAL Send a char to the current output device
 
-    ldy #0x02
+    ldy #0x02               ;Countdown = 2, meaning 4 bytes will be read:
+                            ;  Next BASIC line address low, high
+                            ;  Current BASIC line number low, high
 
     jsr sub_a89a_chk_stop   ;STOP key pressed?  (Returns Z=1 if so.)
-    bne lab_a7f4_cat_loop   ;  Branch if not pressed
+    bne lab_a7f4_line_loop  ;  Branch to get next line if not pressed
+
     ;STOP key pressed
 
 lab_a831_error:
-    jmp sub_a65e_close      ;Send CLOSE to IEC
+    jmp sub_a65e_close      ;Jump out to Send CLOSE to IEC
 
 ;Command to change the drive's device number
 mem_a834_m_w:
@@ -1676,10 +1707,10 @@ sub_a83c_rd_cmd_ch:
     jsr sub_a3ad_set_fa_st  ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
     jsr sub_a3ef_talk       ;Send TALK to IEC
     lda #(0x0F | 0x60)      ;A = 0x0F (Command Channel) | 0x60 (SECOND)
-    jsr sub_a4bc_tksa       ;Send secondary address to an IEC device commanded to talk
+    jsr sub_a4bc_tksa       ;Send secondary address for TALK to IEC
 
 lab_a84a_more:
-    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
+    jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
     jsr chrout              ;KERNAL Send a char to the current output device
     cmp #0x0d               ;Is the character a carriage return?
     bne lab_a84a_more       ;  No: loop for another character
