@@ -3,8 +3,8 @@
 
     mem_0003 = 0x03
     mem_0004 = 0x04
-    valtyp = 0x07           ;Data type of value: 0=numeric, $ff=string
-    intflag = 0x08          ;Type of number: 0=floating point, $80=integer
+    valtyp = 0x07           ;Data type of value: 0=numeric, 0xff=string
+    intflag = 0x08          ;Type of number: 0=floating point, 0x80=integer
     mem_000a = 0x0a
     mem_000b = 0x0b
     mem_0010 = 0x10
@@ -29,7 +29,7 @@
     tapwct = 0xba           ;Tape write countdown ***
     salptr = 0xc9           ;Pointer: start address for LOAD or SAVE ***
     fnlen = 0xd1            ;Length of file name: 0=no name
-    sa = 0xd3               ;Current secondary address OR'd e.g. with #60
+    sa = 0xd3               ;Current secondary address
     fa = 0xd4               ;Current device number
     datax = 0xd9            ;Current Character to Print
     fnadr = 0xda            ;Pointer: Start of filename
@@ -56,19 +56,19 @@
     frmevl = 0xbd98         ;BASIC Input and evaluate any expression
     syntax = 0xbf00         ;BASIC ?SYNTAX ERROR
     sub_b94d = 0xb94d
-    lab_bb4c = 0xbb4c
+    doagin = 0xbb4c         ;BASIC Handle bad data
     sub_bcda = 0xbcda
     iscoma = 0xbef5         ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     isaequ = 0xbef7         ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
     ptrget = 0xc12b         ;BASIC Find a variable
     sub_c5b0 = 0xc5b0
-    list = 0xc5b5           ;BASIC Perform list; full check of parameters, incl. -
+    list = 0xc5b5           ;BASIC Perform LIST; full check of parameters, including "-"
     frestr = 0xc7b5         ;BASIC Discard temporary string
     gtbytc = 0xc8d1         ;BASIC Evaluate an expr for 1-byte param (0-255), return in X
     wtxtptr = 0xc918        ;BASIC Copy FBUFPT (0x006E) to TXTPTR (0x0077)
     fin = 0xce29            ;BASIC Convert an ASCII string into a numeral in FPAcc #1
     linprt = 0xcf83         ;BASIC Print 256*A + X in decimal
-    sub_cf93 = 0xcf93
+    ntostr = 0xcf93         ;BASIC Convert number to string in 0x100
     sub_d52e = 0xd52e
     sub_d717 = 0xd717
     prcrlf = 0xd534         ;BASIC Print carriage return and linefeed
@@ -97,7 +97,7 @@
     lodmsg = 0xf46d         ;KERNAL Print LOADING or VERIFYING if in direct mode
     notfnd = 0xf5ad         ;KERNAL ?FILE NOT FOUND ERROR
     prmsg = 0xf349          ;KERNAL Print a message from 0xF000 table at offset Y
-    is7802 = 0xf351         ;KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
+    is7802 = 0xf351         ;KERNAL Compare TXTPTR+1: LDA 0x78; CMP #2; RTS
     srchng = 0xf449         ;KERNAL Print SEARCHING if in direct mode
     open = 0xf4a5           ;KERNAL Send OPEN to IEEE
     nprsnt = 0xf4bb         ;KERNAL ?DEVICE NOT PRESENT ERROR
@@ -416,23 +416,25 @@ lab_a18c_not_in_cmd:
 
 lab_a19f_semi:
     jsr frmevl              ;BASIC Input and evaluate any expression
-    bit valtyp
-    bmi lab_a1ac
-    jsr sub_cf93
+    bit valtyp              ;BIT with Data type of value: 0=numeric, 0xff=string
+    bmi lab_a1ac_str        ;Branch if value is a string
+
+    ;Value is not a string
+    jsr ntostr              ;BASIC Convert number to string in 0x100
     jsr sub_c5b0
 
-lab_a1ac:
+lab_a1ac_str:
     jsr frestr              ;BASIC Discard temporary string
     sta fnlen
     ldy #0x00
 
-lab_a1b3:
+lab_a1b3_loop:
     cpy fnlen
     beq lab_a1bf
     lda [mem_001f],y
     jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
     iny
-    bne lab_a1b3
+    bne lab_a1b3_loop
 
 lab_a1bf:
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
@@ -550,8 +552,10 @@ lab_a281:
 
 lab_a285:
     jsr chrget
-    bit valtyp
-    bpl lab_a2bd
+    bit valtyp              ;BIT with Data type of value: 0=numeric, 0xff=string
+    bpl lab_a2bd_not_str    ;Branch if not a string
+
+    ;Value is a string
     bit mem_000b
     bvc lab_a299
     inx
@@ -585,19 +589,21 @@ lab_a2b1:
     jsr sub_b965
     jmp lab_a2c5
 
-lab_a2bd:
+lab_a2bd_not_str:
     jsr fin                 ;BASIC Convert an ASCII string into a numeral in FPAcc #1
     lda intflag
     jsr sub_b94d
 
 lab_a2c5:
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
-    beq lab_a2d1
+    beq lab_a2d1_null_comma ;Branch if null
     cmp #',
-    beq lab_a2d1
-    jmp lab_bb4c
+    beq lab_a2d1_null_comma ;Branch if comma
 
-lab_a2d1:
+    ;Not a null or a comma
+    jmp doagin              ;BASIC Handle bad data
+
+lab_a2d1_null_comma:
     lda txtptr
     ldy txtptr+1
     sta inpptr              ;INPUT, READ, and GET vector to save CHRGET
@@ -1383,7 +1389,7 @@ lab_a6c6_not_semi:
                                     ;mode, then try to load or verify the file.  Prints the error
                                     ;message if something goes wrong.
 
-    jsr is7802              ;KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
+    jsr is7802              ;KERNAL Compare TXTPTR+1: LDA 0x78; CMP #2; RTS
     bne lab_a6d1_not_0x02
     jsr sub_a83c_rd_cmd_ch  ;Read the IEC command channel and print it
 
@@ -1395,7 +1401,7 @@ lab_a6d1_not_0x02:
     jsr stop                ;KERNAL test STOP key and act if pressed
     ldy #0xae               ;A = index to message "READY."
     jsr prmsg               ;KERNAL Print a message from 0xF000 table at offset Y
-    jsr is7802              ;KERNAL Compare TXTPTR+1: LDA $78; CMP #$02; RTS
+    jsr is7802              ;KERNAL Compare TXTPTR+1: LDA 0x78; CMP #2; RTS
     bne lab_a6e5_not_0x02
     jmp resbas              ;Jump out to BASIC restart execution to start, clear, and chain
 

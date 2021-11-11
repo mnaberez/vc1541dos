@@ -62,7 +62,7 @@ The original author is unknown.  The EPROM contains the strings `vc-1541-dos/80`
 
 Martin Hoffman-Vetter is [credited](https://www.forum64.de/index.php?thread/106364-1541er-interface-f%C3%BCr-cbm8032-mystery-eprom/&postID=1742166#post1742166) by Sven for noticing that the IEC routines in the ROM are nearly identical to those in the C64 KERNAL, which greatly simplified disassembly.
 
-I created my own disassembly to investigate the unanswered questions and to have a relocatable source that could be changed or improved.  I started from the ROM binary using my [`m740dasm`](https://github.com/mnaberez/m740dasm) disassembler.  My primary reference materials were the book "Programming the PET/CBM" by Raeto West, the original C64 KERNAL source code from CBM, and some of my past PET/CBM disassemblies.  
+I created my own disassembly to investigate the unanswered questions and to have a relocatable source that could be changed or improved.  I started from the ROM binary using my [`m740dasm`](https://github.com/mnaberez/m740dasm) disassembler.  My primary reference materials were "Programming the PET/CBM" by Raeto West, "The Complete Commodore Inner Space Anthology" by Karl J.H. Hildon, the original C64 KERNAL source code from CBM, and some of my past PET/CBM disassemblies.
 
 ## License
 
