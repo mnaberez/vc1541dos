@@ -43,7 +43,7 @@ All commands in the VC-1541-DOS wedge are prefixed with a `!`.  The standard CBM
 | `!verify"filename",027a` | Verify a program on the current IEC device against the given addres.  Only a start address is supported.  It must be four hexadecimal digits. |
 | `!save"filename"` | Save a BASIC program to the current IEC device. |
 | `!save"filename",027a,0300` |  Save memory from 0x027A-0x02FF inclusive.  Both the start and the end addresses are required and must be four hexadecimal digits. |
-| `!open#2,"filename"` | Open a file with the given secondary address on the current IEC device.  The comma and the quotes are required.  The filename can not be empty. |
+| `!open#2,"filename,s,r"` | Open a file with the given secondary address on the current IEC device.  The comma and the quotes are required.  The filename can not be empty.  Note that secondary addresses 0 and 1 are special in CBM DOS and are used to load and save programs.  For general purpose file access, use a secondary address between 2 and 14. |
 | `!cmd#2` | Redirect output to the given secondary address on the current IEC device. |
 | `!print#2` | Print a blank line to the given secondary address on the current IEC device.  If `!cmd#` was started, it is automatically ended first. |
 
@@ -63,7 +63,9 @@ I created my own disassembly to investigate the unanswered questions and to have
 
 ## License
 
-No rights are claimed on the original VC-1541-DOS code or C64 KERNAL code.  All other work is made available under the 3-Clause BSD License.
+No rights are claimed on the original VC-1541-DOS code or C64 KERNAL code.  
+
+All other work is made available under the 3-Clause BSD License.
 
 ## Author
 

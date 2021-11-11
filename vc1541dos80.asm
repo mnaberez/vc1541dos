@@ -114,7 +114,7 @@
     jmp sub_a382_untorl         ;a009   Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
     jmp sub_a128_open           ;a00c   Send OPEN to IEC or IEEE
     jmp sub_a128_close          ;a00f   Send CLOSE to IEC or IEEE
-    jmp sub_a141_acptr          ;a012   Read a byte from IEC or IEEE
+    jmp sub_a141_acptrs         ;a012   Read a byte from IEC or IEEE
     jmp sub_a306_ciout          ;a015   Send a byte to IEC or IEEE
     jmp sub_a314_listen         ;a018   Send LISTEN to IEC or IEEE
     jmp sub_a32a_unlsn          ;a01b   Send UNLISTEN to IEC or IEEE
@@ -347,7 +347,12 @@ lab_a13e_not_iec:
 
 
 ;Read a byte from IEC or IEEE
-sub_a141_acptr:
+;
+;Note: On IEC, this is not a normal ACPTR (sub_a50e_acptr).  It instead calls sub_a507_acptrs,
+;      which first checks STATUS and does nothing if it is nonzero.  On IEEE-488, the normal
+;      ACPTR routine in the KERNAL is called, which does not have this behavior.
+;
+sub_a141_acptrs:
     jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a149_not_iec
     jmp sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
@@ -476,7 +481,7 @@ lab_a1e0_wedge_get:
     ldx #0x01
     ldy #0x02
     lda #0x00
-    sta monbuf+1            ;Input buffer used by MONITOR (0x200-0x250)
+    sta monbuf+1            ;Store in input buffer used by MONITOR (0x200-0x250)
     lda #0x40
     jmp lab_a245
 
@@ -484,10 +489,11 @@ sub_a203:
     ldx #0x00
 
 lab_a205_loop:
-    jsr sub_a141_acptr      ;Read a byte from IEC or IEEE
+    jsr sub_a141_acptrs     ;Read a byte from IEC or IEEE.  On IEC only, check STATUS first:
+                            ;  If STATUS=0 then read a byte from IEC, else return a newline.
     cmp #0x0d
     beq lab_a21c
-    sta monbuf,x            ;Input buffer used by MONITOR (0x200-0x250)
+    sta monbuf,x            ;Store in input buffer used by MONITOR (0x200-0x250)
     inx
     cpx #0x51
     bne lab_a205_loop
@@ -497,7 +503,7 @@ lab_a205_loop:
 
 lab_a21c:
     lda #0x00
-    sta monbuf,x            ;Input buffer used by MONITOR (0x200-0x250)
+    sta monbuf,x            ;Store in input buffer used by MONITOR (0x200-0x250)
     ldx #0xff
     ldy #0x01
     rts
@@ -537,10 +543,11 @@ lab_a24b_input_loop:
     sty txtptr+1
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     bne lab_a285
-    bit readop              ;Read operation: 0=INPUT, $40=GET, $98=READ
+    bit readop              ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ
     bvc lab_a277
-    jsr sub_a141_acptr      ;Read a byte from IEC or IEEE
-    sta monbuf              ;Input buffer used by MONITOR (0x200-0x250)
+    jsr sub_a141_acptrs     ;Read a byte from IEC or IEEE.  On IEC only, check STATUS first:
+                            ;  If STATUS=0 then read a byte from IEC, else return a newline.
+    sta monbuf              ;Store in input buffer used by MONITOR (0x200-0x250)
     ldx #0xff
     ldy #0x01
     bne lab_a281            ;Branch always
@@ -1302,7 +1309,7 @@ lab_a647_loop:
     bne lab_a647_loop
 
 lab_a65b_done:
-    jsr sub_a4ef_unlsn      ;a65b  20 ee a4   Send UNLISTEN to IEC
+    jsr sub_a4ef_unlsn      ;Send UNLISTEN to IEC
 
 ;Send CLOSE to IEC
 sub_a65e_close:
@@ -1310,8 +1317,8 @@ sub_a65e_close:
     bmi lab_a671_done
     jsr sub_a3f2_listen     ;Send LISTEN to IEC
     lda sa                  ;A = KERNAL current secondary address
-    and #0xef
-    ora #0xe0               ;OR with 0xE0 = CLOSE
+    and #0b11101111         ;AND 0xEF so high nibble be OR'd to become 0xE
+    ora #0b11100000         ;OR  0xE0 = CLOSE
     jsr sub_a49c_second     ;Send secondary address to IEC for LISTEN
     jsr sub_a4ef_unlsn      ;Send UNLISTEN to IEC
 
@@ -1443,27 +1450,36 @@ lab_a6ff_fnlen_ok:
     jsr sub_a3ef_talk       ;Send TALK to IEC
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a4bc_tksa       ;Send secondary address to an IEC device commanded to talk
+
     jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
-    sta salptr
-    lda status
-    lsr a
-    lsr a
-    bcc lab_a71f_found
+    sta salptr              ;Store program's start address low (or newline) in pointer low
+
+    lda status              ;A = status
+    lsr a                   ;Bit 1 (timeout error) -> Bit 0
+    lsr a                   ;Bit 0 -> C
+    bcc lab_a71f_no_tmo     ;Branch if C is clear, meaning no timeout occurred
+
     jmp notfnd              ;KERNAL ?FILE NOT FOUND ERROR
 
-lab_a71f_found:
+lab_a71f_no_tmo:
     jsr lodmsg              ;KERNAL Print LOADING or VERIFYING if in direct mode
+
     jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
-    sta salptr+1
+    sta salptr+1            ;Store program's start address high (or newline) in pointer high
+
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
-    bne lab_a73e_not_comma
-    ;Found a comma
+    bne lab_a73e_not_comma  ;No start address specified in command, branch to keep salptr
+
+    ;Found a comma; parse start address from command
     jsr chrget              ;Consume the comma
     jsr sub_a861_parse_addr ;Parse a 4-digit hex address from BASIC text into ml1ptr
+
+    ;Copy ml1ptr (start address from command) into salptr
     lda ml1ptr
     sta salptr
     lda ml1ptr+1
     sta salptr+1
+
     lda #';
     sta tapwct
 
@@ -1472,7 +1488,7 @@ lab_a73e_not_comma:
     cmp #',
     bne lab_a750_read_loop
     lda verchk              ;A = KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
-    bne lab_a750_read_loop  ;Branch if perfoming VERIFY
+    bne lab_a750_read_loop  ;Branch if performing VERIFY
     ;Performing LOAD
     lda salptr
     sta txttab
@@ -1495,10 +1511,10 @@ lab_a75e_no_stop:
     jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a newline.
 
     tax                     ;X = byte received from IEC
-    lda status
-    lsr a
-    lsr a
-    bcs lab_a750_read_loop
+    lda status              ;A = status
+    lsr a                   ;Bit 1 (timeout error) -> Bit 0
+    lsr a                   ;Bit 0 -> C
+    bcs lab_a750_read_loop  ;Branch if C is set, meaning a timeout occurred
     txa                     ;A = byte received from IEC
 
     ldy verchk              ;Y = KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
@@ -1506,7 +1522,7 @@ lab_a75e_no_stop:
 
     ;Performing VERIFY
     ldy #0x00
-    cmp [salptr],y
+    cmp [salptr],y          ;Compare byte received with byte to verify
     beq lab_a796_next_byte  ;Branch if bytes are equal
 
     ;VERIFY failed
@@ -1525,7 +1541,7 @@ lab_a75e_no_stop:
     jmp krnerr              ;KERNAL ?<message> ERROR from KERNAL error in Y
 
 lab_a794_sta_byte:
-    sta [salptr],y
+    sta [salptr],y          ;Store the byte received in memory
 
 lab_a796_next_byte:
     jsr sub_a682_inc_salptr ;Increment SALPTR
