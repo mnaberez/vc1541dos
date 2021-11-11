@@ -1,12 +1,12 @@
     .area CODE1 (ABS)
     .org 0xa000
 
-    mem_0003 = 0x03
-    mem_0004 = 0x04
+    schchr = 0x03           ;Search character
+    qteflg = 0x04           ;Scan-between-quotes flag
     valtyp = 0x07           ;Data type of value: 0=numeric, 0xff=string
     intflag = 0x08          ;Type of number: 0=floating point, 0x80=integer
-    mem_000a = 0x0a
-    mem_000b = 0x0b
+    subflg = 0x0a           ;Subscript flag; FNX flag
+    readop = 0x0b           ;Read operation: 0=INPUT, $40=GET, $98=READ
     mem_0010 = 0x10
     mem_0013 = 0x13
     mem_001f = 0x1f
@@ -41,7 +41,7 @@
     mem_0102 = 0x102
     mem_0103 = 0x103
     mem_01ff = 0x1ff
-    mem_0200 = 0x200
+    monbuf = 0x200          ;Input buffer used by MONITOR (0x200-0x250)
     mem_03fe = 0x3fe        ;Current device number on IEC bus (default 8)
     mem_03ff = 0x3ff        ;Copy of current IEC device number
     mem_87d0_torl = 0x87d0  ;Stores TALK or LISTEN state: 0x40=TALK, 0x20=LISTEN
@@ -109,7 +109,7 @@
     ;Entry points at the beginning of the ROM
 
     jmp sub_a036_install        ;a000   Install the wedge with CHRGET patch
-    jmp sub_a09c_wedge_cmd      ;a003   Perform wedge command at txtptr+0
+    jmp sub_a09c_wedge_eval     ;a003   Evaluate and perform wedge command at txtptr+0
     jmp sub_a377_isour          ;a006   Send last byte to IEC or IEEE
     jmp sub_a382_untorl         ;a009   Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
     jmp sub_a128_open           ;a00c   Send OPEN to IEC or IEEE
@@ -120,9 +120,9 @@
     jmp sub_a32a_unlsn          ;a01b   Send UNLISTEN to IEC or IEEE
     jmp sub_a31f_talk           ;a01e   Send TALK to IEC or IEEE
     jmp sub_a335_untlk          ;a021   Send UNTALK to IEC or IEEE
-    jmp sub_a345_second         ;a024   Send secondary address to IEC or IEC for LISTEN
-    jmp sub_a353_tksa           ;a027   Send secondary address to IEC or IEEE for TALK
-    jmp sub_a340_lstksa         ;a02a   Send secondary address to IEC or IEEE for TALK or LISTEN
+    jmp sub_a345_second         ;a024   Send secondary address for LISTEN to IEC or IEC
+    jmp sub_a353_tksa           ;a027   Send secondary address for TALK to IEC or IEEE
+    jmp sub_a340_lstksa         ;a02a   Send secondary address for TALK or LISTEN to IEC or IEEE
     jmp sub_a361_atnon          ;a02d   Assert ATN on IEC or IEEE
     jmp sub_a36c_scatn          ;a030   Release ATN on IEC or IEEE
     jmp sub_a119_jmp_lstksa     ;a033   Jumps directly to sub_a340_lstksa
@@ -186,57 +186,60 @@ lab_a092:
     lda mem_03fe            ;A = current device number on IEC bus
     sta mem_03ff            ;Save as copy of current IEC device number
 
-sub_a09c_wedge_cmd:
+sub_a09c_wedge_eval:
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     pha
     jsr chrget
     pla
+
     cmp #0x93               ;Is byte at txtptr+0 = 0x93 = LOAD token
-    beq lab_a10f_cmd_load
+    beq lab_a10f_wedge_load
+
     cmp #0x94               ;Is byte at txtptr+0 = 0x94 = SAVE token
-    bne lab_a0af
-    jmp lab_a5e5_cmd_save
+    bne lab_a0af_not_save
+    jmp lab_a5e5_wedge_save
 
-lab_a0af:
+lab_a0af_not_save:
     cmp #0x95               ;Is byte at txtptr+0 = 0x95 = VERIFY token
-    beq lab_a112_cmd_verify
+    beq lab_a112_wedge_verify
+
     cmp #0xd7               ;Is byte at txtptr+0 = 0xD7 = CATALOG token
-    bne lab_a0ba
-    jmp lab_a7c7_cmd_catalog
+    bne lab_a0ba_not_catalog
+    jmp lab_a7c7_wedge_catalog
 
-lab_a0ba:
+lab_a0ba_not_catalog:
     cmp #0x9f               ;Is byte at txtptr+0 = 0x9F = OPEN token
-    bne lab_a0c1
-    jmp lab_a11c_cmd_open
+    bne lab_a0c1_not_open
+    jmp lab_a11c_wedge_open
 
-lab_a0c1:
+lab_a0c1_not_open:
     cmp #0x98               ;Is byte at txtptr+0 = 0x98 = PRINT# token
-    bne lab_a0c8
-    jmp lab_a175_cmd_print
+    bne lab_a0c8_not_print
+    jmp lab_a175_wedge_print
 
-lab_a0c8:
+lab_a0c8_not_print:
     cmp #0xa1               ;Is byte at txtptr+0 = 0xA1 = GET token
-    bne lab_a0cf
-    jmp lab_a1e0_cmd_get
+    bne lab_a0cf_not_get
+    jmp lab_a1e0_wedge_get
 
-lab_a0cf:
+lab_a0cf_not_get:
     cmp #0xa0               ;Is byte at txtptr+0 = 0xA0 = CLOSE token
-    bne lab_a0d6
-    jmp lab_a133_cmd_close
+    bne lab_a0d6_not_close
+    jmp lab_a133_wedge_close
 
-lab_a0d6:
+lab_a0d6_not_close:
     cmp #0x84               ;Is byte at txtptr+0 = 0x84 = INPUT# token
-    bne lab_a0dd
-    jmp lab_a226_cmd_input
+    bne lab_a0dd_not_input
+    jmp lab_a226_wedge_input
 
-lab_a0dd:
+lab_a0dd_not_input:
     cmp #0x9d               ;Is byte at txtptr+0 = 0x9D = CMD token
-    bne lab_a0e4
-    jmp lab_a14c_cmd_cmd
+    bne lab_a0e4_not_cmd
+    jmp lab_a14c_wedge_cmd
 
-lab_a0e4:
+lab_a0e4_not_cmd:
     cmp #'Q                 ;Is byte at txtptr+0 = Q char?
-    bne lab_a0f5
+    bne lab_a0f5_not_quit
     ;Wedge command is Quit
     ;Restore normal CHRGET processing
     lda #0xe6
@@ -247,22 +250,22 @@ lab_a0e4:
     sta chrget+2
     rts
 
-lab_a0f5:
+lab_a0f5_not_quit:
     cmp #'@                 ;Is byte at txtptr+0 = @ char?
-    bne lab_a0fc
-    jmp lab_a586_cmd_dos
+    bne lab_a0fc_not_dos
+    jmp lab_a586_wedge_dos
 
-lab_a0fc:
+lab_a0fc_not_dos:
     dec txtptr
     lda txtptr
     cmp #0xff
-    bne lab_a106
+    bne lab_a106_not_0xff
     dec txtptr+1
 
-lab_a106:
+lab_a106_not_0xff:
     jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
     stx mem_03ff            ;Save as copy of current IEC device number
-    jmp sub_a09c_wedge_cmd
+    jmp sub_a09c_wedge_eval
 
 
 ;Wedge command !LOAD
@@ -272,7 +275,7 @@ lab_a106:
 ;  !LOAD"FILENAME",027A   Load at start address specified as 4 hex digits.
 ;                         All four digits are required.  An end address is not supported.
 ;
-lab_a10f_cmd_load:
+lab_a10f_wedge_load:
     lda #0                  ;A = 0 (LOAD)
     .byte 0x2c              ;Skip next instruction
 
@@ -283,15 +286,15 @@ lab_a10f_cmd_load:
 ;  !VERIFY"FILENAME",027A   Verify against start address specified as 4 hex digits.
 ;                           All four digits are required.  An end address is not supported.
 ;
-lab_a112_cmd_verify:
+lab_a112_wedge_verify:
     lda #0xff              ;A = 0xFF (VERIFY) for VERCHK.  It's normally 0 or 1 but we set
                            ;it to 0xFF so we can test for verify with "bmi verchk" later.
     sta verchk             ;Store in KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     jmp lab_a6b7_load_or_verify
 
-;Jump to Send secondary address to IEC or IEEE for TALK or LISTEN
+;Jump to Send secondary address for TALK or LISTEN to IEC or IEEE
 sub_a119_jmp_lstksa:
-    jmp sub_a340_lstksa     ;Send secondary address to IEC or IEEE for TALK or LISTEN
+    jmp sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
 
 ;Wedge command !OPEN
 ;
@@ -300,7 +303,7 @@ sub_a119_jmp_lstksa:
 ;  OPEN#2,"FILENAME"     Open a file with secondary address 2.  The comma and the quotes
 ;                        are required.  The filename can not be empty.
 ;
-lab_a11c_cmd_open:
+lab_a11c_wedge_open:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
     jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
@@ -326,7 +329,7 @@ lab_a130_not_iec:
 ;
 ;  !CLOSE#2   Close channel with secondary address 2
 ;
-lab_a133_cmd_close:
+lab_a133_wedge_close:
     jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     ;Fall through
 
@@ -357,7 +360,7 @@ lab_a149_not_iec:
 ;
 ;  !CMD#2   Redirect output to secondary address 2 on device FA.
 ;
-lab_a14c_cmd_cmd:
+lab_a14c_wedge_cmd:
     jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     lda #<lab_a15f_prscr
     sta prscr
@@ -365,7 +368,7 @@ lab_a14c_cmd_cmd:
     sta prscr+1
     jsr sub_a314_listen     ;Send LISTEN to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
-    jmp sub_a340_lstksa     ;Send secondary address to IEC or IEEE for TALK or LISTEN
+    jmp sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
 
 
 ;Routine installed in prscr vector
@@ -386,7 +389,7 @@ lab_a16f_not_cr:
 
 ;Wedge command !PRINT#
 ;
-lab_a175_cmd_print:
+lab_a175_wedge_print:
     ;Are we in CMD# mode?  If so, the PRSCR vector points to our routine.
     lda prscr
     cmp #<lab_a15f_prscr
@@ -409,7 +412,7 @@ lab_a18c_not_in_cmd:
     jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr sub_a314_listen     ;Send LISTEN to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
-    jsr sub_a340_lstksa     ;Send secondary address to IEC or IEEE for TALK or LISTEN
+    jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     bne lab_a1ce_not
     jsr chrget
@@ -459,7 +462,7 @@ lab_a1dd_done:
 
 ;Wedge command !GET#
 ;
-lab_a1e0_cmd_get:
+lab_a1e0_wedge_get:
     jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     lda mem_03ff            ;A = copy of current IEC device number
@@ -467,11 +470,11 @@ lab_a1e0_cmd_get:
     sta mem_0010
     jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
-    jsr sub_a340_lstksa     ;Send secondary address to IEC or IEEE for TALK or LISTEN
+    jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
     ldx #0x01
     ldy #0x02
     lda #0x00
-    sta mem_0200+1
+    sta monbuf+1            ;Input buffer used by MONITOR (0x200-0x250)
     lda #0x40
     jmp lab_a245
 
@@ -482,7 +485,7 @@ lab_a205_loop:
     jsr sub_a141_acptr      ;Read a byte from IEC or IEEE
     cmp #0x0d
     beq lab_a21c
-    sta mem_0200,x
+    sta monbuf,x            ;Input buffer used by MONITOR (0x200-0x250)
     inx
     cpx #0x51
     bne lab_a205_loop
@@ -492,17 +495,19 @@ lab_a205_loop:
 
 lab_a21c:
     lda #0x00
-    sta mem_0200,x
+    sta monbuf,x            ;Input buffer used by MONITOR (0x200-0x250)
     ldx #0xff
     ldy #0x01
     rts
 
-lab_a226_cmd_input:
+;Wedge command !INPUT
+;
+lab_a226_wedge_input:
     jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
-    jsr sub_a340_lstksa     ;Send secondary address to IEC or IEEE for TALK or LISTEN
+    jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
     lda mem_03ff            ;A = copy of current IEC device number
     and #0x7f
     sta mem_0010
@@ -512,7 +517,7 @@ lab_a226_cmd_input:
     lda #0x00
 
 lab_a245:
-    sta mem_000b
+    sta readop              ;Read operation: 0=INPUT, $40=GET, $98=READ
     stx inpptr              ;INPUT, READ, and GET vector to save CHRGET
     sty inpptr+1
 
@@ -530,10 +535,10 @@ lab_a24b_input_loop:
     sty txtptr+1
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     bne lab_a285
-    bit mem_000b
+    bit readop              ;Read operation: 0=INPUT, $40=GET, $98=READ
     bvc lab_a277
-    jsr sub_a141_acptr
-    sta mem_0200
+    jsr sub_a141_acptr      ;Read a byte from IEC or IEEE
+    sta monbuf              ;Input buffer used by MONITOR (0x200-0x250)
     ldx #0xff
     ldy #0x01
     bne lab_a281            ;Branch always
@@ -556,27 +561,27 @@ lab_a285:
     bpl lab_a2bd_not_str    ;Branch if not a string
 
     ;Value is a string
-    bit mem_000b
+    bit readop              ;Read operation: 0=INPUT, $40=GET, $98=READ
     bvc lab_a299
     inx
     stx txtptr
     lda #0x00
-    sta mem_0003
-    beq lab_a2a5
+    sta schchr
+    beq lab_a2a5            ;Branch always
 
 lab_a299:
-    sta mem_0003
+    sta schchr
     cmp #'"
     beq lab_a2a6
     lda #0x3a
-    sta mem_0003
+    sta schchr
     lda #',
 
 lab_a2a5:
     clc
 
 lab_a2a6:
-    sta mem_0004
+    sta qteflg              ;Scan-between-quotes flag
     lda txtptr
     ldy txtptr+1
     adc #0x00
@@ -680,27 +685,27 @@ lab_a33d_not_iec:
     jmp untlk               ;KERNAL Send UNTALK to IEEE
 
 
-;Send secondary address to IEC or IEEE for TALK or LISTEN
+;Send secondary address for TALK or LISTEN to IEC or IEEE
 sub_a340_lstksa:
     bit mem_87d0_torl       ;Bit test for TALK or LISTEN state
     bvs sub_a353_tksa       ;If we sent TALK, branch to send
-                            ;  secondary address to IEC or IEEE for TALK
+                            ;  secondary address for TALK to IEC or IEEE
     ;We sent LISTEN so fall through
 
-;Send secondary address to IEC or IEC for LISTEN
+;Send secondary address for LISTEN to IEC or IEC
 sub_a345_second:
     pha
     jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a34f_not_iec
     pla
-    jmp sub_a49c_secnd      ;Send secondary address to IEC for LISTEN
+    jmp sub_a49c_second     ;Send secondary address to IEC for LISTEN
 
 lab_a34f_not_iec:
     pla
     jmp second              ;KERNAL Send Secondary Address to IEEE
 
 
-;Send secondary address to IEC or IEEE for TALK
+;Send secondary address for TALK to IEC or IEEE
 sub_a353_tksa:
     pha
     jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
@@ -946,7 +951,7 @@ lab_a495_csberr:
     bcc lab_a4f3_dlabye     ;Branch always
 
 ;Send secondary address to IEC for LISTEN
-sub_a49c_secnd:
+sub_a49c_second:
     sta bsour
     jsr sub_a419_isoura
 
@@ -1127,13 +1132,13 @@ sub_a580_st_or_a:
 lab_a585:
     rts
 
-;!@ DOS Wedge Command
+;Wedge Command !@
 ;
 ;  !@     Read the command channel and print it.
 ;
 ;  !@"V"  Send an arbitrary string to the command channel.  It must be quoted.
 ;
-lab_a586_cmd_dos:
+lab_a586_wedge_dos:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     bne lab_a591_more
@@ -1199,7 +1204,7 @@ lab_a5ca_send_dos_cmd:
     sta status              ;KERNAL STATUS = 0 (no error)
     jsr sub_a3f2_listen     ;Send LISTEN to IEC
     lda #(0x0f | 0x60)      ;A = 0x0F (Command Channel) | 0x60 (SECOND)
-    jsr sub_a49c_secnd      ;Send secondary address to IEC for LISTEN
+    jsr sub_a49c_second     ;Send secondary address to IEC for LISTEN
 
     ldy #0x00
 
@@ -1219,7 +1224,7 @@ lab_a5d8_loop:
 ;  !SAVE"FILENAME",027A,0300  Save memory from 0x027A-0x02FF inclusive.
 ;                             Both addresses are required and must be 4 hex digits.
 ;
-lab_a5e5_cmd_save:
+lab_a5e5_wedge_save:
     jsr sub_a5eb_save       ;Try to save the file as requested
     jmp sub_a83c_rd_cmd_ch  ;Read the IEC command channel and print it
 
@@ -1272,7 +1277,7 @@ lab_a623_no_addr:
 lab_a633_with_addr:
     jsr sub_a3f2_listen     ;Send LISTEN to IEC
     lda sa                  ;A = KERNAL current secondary address
-    jsr sub_a49c_secnd      ;Send secondary address to IEC for LISTEN
+    jsr sub_a49c_second     ;Send secondary address to IEC for LISTEN
     ldy #0x00               ;Y is always 0 in lab_a647_loop below
     lda salptr
     jsr sub_a4d2_ciout      ;Send a byte to IEC
@@ -1305,7 +1310,7 @@ sub_a65e_close:
     lda sa                  ;A = KERNAL current secondary address
     and #0xef
     ora #0xe0               ;OR with 0xE0 = CLOSE
-    jsr sub_a49c_secnd      ;Send secondary address to IEC for LISTEN
+    jsr sub_a49c_second     ;Send secondary address to IEC for LISTEN
     jsr sub_a4ef_unlsn      ;Send UNLISTEN to IEC
 
 lab_a671_done:
@@ -1353,7 +1358,7 @@ lab_a68f:
     jsr sub_a3f2_listen     ;Send LISTEN to IEC
     lda sa                  ;A = KERNAL current secondary address
     ora #0xf0               ;OR it with 0xF0 = OPEN
-    jsr sub_a49c_secnd      ;Send secondary address to IEC for LISTEN
+    jsr sub_a49c_second     ;Send secondary address to IEC for LISTEN
     lda status              ;A = KERNAL status
     bpl lab_a6a8_present    ;Branch if device not present error bit = 0
     ;device not present
@@ -1412,7 +1417,7 @@ lab_a6e5_not_0x02:
     stx mem_0013
     lda #0x00
     sta mem_003b
-    sta mem_000a
+    sta subflg              ;Subscript flag; FNX flag
 
 lab_a6f5_done:
     rts
@@ -1559,7 +1564,7 @@ sub_a7b6_eval_fname:
 ;
 ;  !CATALOG"filename"   List directory with filename
 ;
-lab_a7c7_cmd_catalog:
+lab_a7c7_wedge_catalog:
     jsr sub_a390_setup      ;Sets up VIA, sets FA = IEC device, sets KERNAL STATUS = 0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     beq lab_a7d5_no_fname   ;No filename, so branch to set the default of "$"
