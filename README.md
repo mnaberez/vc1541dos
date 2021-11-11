@@ -29,7 +29,7 @@ VC-1541-DOS is implemented as a BASIC wedge and is installed with ``sys 40960``.
 All commands in the VC-1541-DOS wedge are prefixed with a `!`.  The standard CBM BASIC commands can still access IEEE-488 devices but only the `!` commands can access IEC devices.  Although most `!` commands share the same names as their CBM BASIC counterparts, they do not work exactly the same.  
 
 | Command | Description |
-| - | - |
+| ------- | ----------- |
 | `!q` | Quit.  Uninstalls the VC-1541-DOS wedge. |
 | `!9` | Change the current IEC device number to the given device number.  When the wedge is installed, it defaults to device 8.  It can also be changed with `poke 1022,9`. |
 | `!@` | Read the command channel on the current IEC device and print it. |
