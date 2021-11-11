@@ -240,7 +240,8 @@ lab_a0dd_not_input:
 lab_a0e4_not_cmd:
     cmp #'Q                 ;Is byte at txtptr+0 = Q char?
     bne lab_a0f5_not_quit
-    ;Wedge command is Quit
+
+    ;Wedge command is !Q (Quit)
     ;Restore normal CHRGET processing
     lda #0xe6
     sta chrget              ;0070 E6 77 INC $77
@@ -259,10 +260,11 @@ lab_a0fc_not_dos:
     dec txtptr
     lda txtptr
     cmp #0xff
-    bne lab_a106_not_0xff
+    bne lab_a106_wedge_devnum
     dec txtptr+1
 
-lab_a106_not_0xff:
+lab_a106_wedge_devnum:
+    ;Wedge command is !x where x is an int to change current IEC device number
     jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
     stx mem_03ff            ;Save as copy of current IEC device number
     jmp sub_a09c_wedge_eval
@@ -1241,7 +1243,7 @@ sub_a5eb_save:
 lab_a5fc_fnlen_ok:
     jsr sub_a689_open       ;Send OPEN to IEC
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
-    bne lab_a623_no_addr    ;Branch if it's not a command
+    bne lab_a623_no_addr    ;Branch if it's not a comma
     ;Found a comma
     jsr chrget              ;Consume the comma
     ;Parse start address for SAVE into salptr

@@ -22,24 +22,21 @@ The EPROM installs in the UD11 ($A000) socket.  It is 4K and can be burned into 
 
 - Due to its use of location $87D0, the code requires an 80-column machine to fully function.  $87D0 is in the 80-column screen RAM but is not part of the visible screen.  This location is required for the wedge commands `!print#`, `!get#`, `!input#`, and `!cmd#`.  These will not work correctly on a 40-column machine.  However, the other commands will work.
 
-- 2 bytes at the very top of Cassette Buffer 2: $03FE and $03FF.
-
 ## Usage
 
-VC-1541-DOS is implemented as a BASIC wedge.  Activate the wedge with ``sys 40960``.  
+VC-1541-DOS is implemented as a BASIC wedge and is installed with ``sys 40960``.  
 
-All commands in VC-1541-DOS wedge are prefixed with a `!` such as `!load"filename"`.  IEEE-488 and IEC devices can be used at the same time but only the `!` prefixed commands can access an IEC device.  Although the `!` commands share the same names as their CBM BASIC counterparts, they do not work the same.  
-
-Location `1022` holds the current IEC device number used by VC-1541-DOS.  When the wedge is installed, it defaults to `8`.  To use another IEC device such as `9`, enter `poke 1022,9`.
+All commands in the VC-1541-DOS wedge are prefixed with a `!`.  The standard CBM BASIC commands can still access IEEE-488 devices but only the `!` commands can access IEC devices.  Although most `!` commands share the same names as their CBM BASIC counterparts, they do not work exactly the same.  
 
 | Command | Description |
 | - | - |
 | `!q` | Quit.  Uninstalls the VC-1541-DOS wedge. |
-| `!@` | Read the command channel on the current IEC device (location `1022`) and print it. |
-| `!@"s0:filename"` | Send an arbitrary string to the command channel on the current IEC device.  The command must be quoted. |
-| `!u9` | Temporarily change the device number of the current IEC device to the given device number.  This sends an `M-W` command to overwrite locations `$77` and `$78` in the drive, as described in the 1541 User's Guide.  Location `1022` will also be updated with the new device number. |
+| `!9` | Change the current IEC device number to the given device number.  When the wedge is installed, it defaults to device 8.  It can also be changed with `poke 1022,9`. |
+| `!@` | Read the command channel on the current IEC device and print it. |
+| `!@"s0:filename"` | Send a CBM DOS command to the command channel on the current IEC device.  The command must be quoted. |
+| `!u9` | Reprogram the device number of the current IEC device to the given device number.  This sends an `M-W` command to overwrite locations `$77` and `$78` in the drive, as described in the 1541 User's Guide. The current IEC device number will also be switched to the new device number. |
 | `!catalog` | Read the directory on the current IEC device.  This is equivalent to `!catalog"$"`. |
-| `!catalog"$0:foo*"` | Read the directory on the current IEC device with the given search pattern.  Enter the search pattern the same as you would with `load"$0:foo*",8` in CBM BASIC.` |
+| `!catalog"$0:foo*"` | Read the directory on the current IEC device with the given search pattern.  Enter the search pattern the same as you would with `load"$0:foo*",8` in CBM BASIC. |
 | `!load"filename"` | Load a program from the current IEC device into the BASIC program area. |
 |  `!load"filename",027a` | Load a program from the current IEC device starting at the given addres.  Only a start address is supported.  It must be four hexadecimal digits. | |
 | `!verify"filename"` | Verify a program on the current IEC device against the BASIC program area. |
@@ -66,7 +63,7 @@ I created my own disassembly to investigate the unanswered questions and to have
 
 ## License
 
-No rights are claimed on the original `VC-1541-DOS/80` code or C64 KERNAL code.  All other work is made available under the 3-Clause BSD License.
+No rights are claimed on the original VC-1541-DOS code or C64 KERNAL code.  All other work is made available under the 3-Clause BSD License.
 
 ## Author
 
