@@ -56,8 +56,8 @@
     frmevl = 0xbd98         ;BASIC Input and evaluate any expression
     syntax = 0xbf00         ;BASIC ?SYNTAX ERROR
     sub_b94d = 0xb94d
-    doagin = 0xbb4c         ;BASIC Handle bad data
-    sub_bcda = 0xbcda
+    doagin = 0xbb4c         ;BASIC Print error message for GET, INPUT, or READ
+    extra = 0xbcda          ;BASIC ?EXTRA IGNORED if INPPTR is not at end of buffer
     iscoma = 0xbef5         ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     isaequ = 0xbef7         ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
     ptrget = 0xc12b         ;BASIC Find a variable; sets valtyp and varpnt
@@ -70,9 +70,9 @@
     linprt = 0xcf83         ;BASIC Print 256*A + X in decimal
     ntostr = 0xcf93         ;BASIC Convert number to string
     dhrget = 0xd077         ;BASIC Default CHRGET implementation
-    sub_d52e = 0xd52e
-    sub_d717 = 0xd717
+    pr2spc = 0xd52e         ;BASIC Print two spaces
     prtcr = 0xd534          ;BASIC Print carriage return
+    wroa = 0xd717           ;MONITOR Print word at (ml1ptr) as 4 hex digits
     hexit = 0xd78d          ;MONITOR Evaluate char in A to a hex nibble
     dprscr = 0xe787         ;EDITOR Default routine for PRSCR vector
 
@@ -553,7 +553,7 @@ lab_a226_wedge_input:
     lda mem_03ff            ;A = copy of current IEC device number
     and #0x7f
     sta mem_0010
-    lda #',
+    lda #0x2c
     sta mem_01ff
     jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into MONBUF, set XY = MONBUF-1
     lda #0x00               ;A=0 (Read operation: 0=INPUT)
@@ -661,7 +661,7 @@ lab_a2c5:
     beq lab_a2d1_null_comma ;Branch if comma
 
     ;Not a null or a comma
-    jmp doagin              ;BASIC Handle bad data
+    jmp doagin              ;BASIC Print error message for GET, INPUT, or READ
 
 lab_a2d1_null_comma:
     lda txtptr
@@ -678,7 +678,7 @@ lab_a2d1_null_comma:
     jmp lab_a24b_input_loop
 
 lab_a2ec:
-    jsr sub_bcda
+    jsr extra               ;BASIC ?EXTRA IGNORED if INPPTR is not at end of buffer
     jsr sub_a335_untlk      ;Send UNTALK to IEC or IEEE
     lda #0x00
     sta mem_0010
@@ -1576,13 +1576,17 @@ lab_a75e_no_stop:
     jsr sub_a580_st_or_a    ;KERNAL STATUS = STATUS | A
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
     jsr sub_a65e_close      ;Send CLOSE to IEC
+
     jsr prtcr               ;BASIC Print carriage return
+
+    ;Print the address of the verify error as 4 hex digits
     lda salptr
     sta ml1ptr
     lda salptr+1
     sta ml1ptr+1
-    jsr sub_d717
-    jsr sub_d52e
+    jsr wroa                ;MONITOR Print word at (ml1ptr) as 4 hex digits
+    jsr pr2spc              ;BASIC Print two spaces
+
     ldy #0x6e               ;Y = 0x6E (?VERIFY ERROR)
     jmp krnerr              ;KERNAL ?<message> ERROR from KERNAL error in Y
 
