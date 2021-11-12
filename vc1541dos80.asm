@@ -318,7 +318,7 @@ lab_a11c_wedge_open:
 
 ;Send OPEN to IEC or IEEE
 sub_a128_open:
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a130_not_iec
     jmp sub_a689_open       ;Send OPEN to IEC
 
@@ -339,7 +339,7 @@ lab_a133_wedge_close:
 
 ;Send CLOSE to IEC or IEEE
 sub_a128_close:
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a13e_not_iec
     jmp sub_a65e_close      ;Send CLOSE to IEC
 
@@ -354,7 +354,7 @@ lab_a13e_not_iec:
 ;      ACPTR routine in the KERNAL is called, which does not have this behavior.
 ;
 sub_a141_acptrs:
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a149_not_iec
     jmp sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
 
@@ -691,7 +691,7 @@ copyright:
 ;Send a byte to IEC or IEEE
 sub_a306_ciout:
     pha
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a310_not_iec
     pla
     jmp sub_a4d2_ciout      ;Send a byte to IEC
@@ -703,7 +703,7 @@ lab_a310_not_iec:
 
 ;Send LISTEN to IEC or IEEE
 sub_a314_listen:
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a31c_not_iec
     jmp sub_a3f2_listen     ;Send LISTEN to IEC
 
@@ -712,7 +712,7 @@ lab_a31c_not_iec:
 
 
 sub_a31f_talk:
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a327_not_iec
     jmp sub_a3ef_talk       ;Send TALK to IEC
 
@@ -722,7 +722,7 @@ lab_a327_not_iec:
 
 ;Send UNLISTEN to IEC or IEEE
 sub_a32a_unlsn:
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a332_not_iec
     jmp sub_a4ef_unlsn      ;Send UNLISTEN to IEC
 
@@ -732,7 +732,7 @@ lab_a332_not_iec:
 
 ;Send UNTALK to IEC or IEEE
 sub_a335_untlk:
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a33d_not_iec
     jmp sub_a4e4_untlk      ;Send UNTALK to IEC
 
@@ -750,7 +750,7 @@ sub_a340_lstksa:
 ;Send secondary address for LISTEN to IEC or IEC
 sub_a345_second:
     pha
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a34f_not_iec
     pla
     jmp sub_a49c_second     ;Send secondary address for LISTEN to IEC
@@ -763,7 +763,7 @@ lab_a34f_not_iec:
 ;Send secondary address for TALK to IEC or IEEE
 sub_a353_tksa:
     pha
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a35d_not_iec
     pla
     jmp sub_a4bc_tksa       ;Send secondary address for TALK to IEC
@@ -775,7 +775,7 @@ lab_a35d_not_iec:
 
 ;Assert ATN on IEC or IEEE
 sub_a361_atnon:
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a369_not_iec
     jmp sub_a4aa_atnon      ;Assert ATN (turns bit 3 of VIA PORT A on)
 
@@ -785,7 +785,7 @@ lab_a369_not_iec:
 
 ;Release ATN on IEC or IEEE
 sub_a36c_scatn:
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a374_not_iec
     jmp sub_a4a1_scatn      ;Release ATN on IEC
 
@@ -795,7 +795,7 @@ lab_a374_not_iec:
 
 ;Send last byte to IEC or IEEE
 sub_a377_isour:
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a37f_not_iec
     jmp sub_a423_isour      ;Send last byte to IEC
 
@@ -808,7 +808,7 @@ lab_a37f_not_iec:
 ;and this routine will OR it with the device address (FA).
 sub_a382_sndcmd:
     pha
-    jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
+    jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a38c_not_iec
     pla
     jmp lab_a3f4_sndcmd     ;Send a command byte to IEC
@@ -1857,8 +1857,9 @@ sub_a89a_chk_stop:
     cmp #0b11101111         ;STOP is row 9, col 4 on both bus and gfx keyboards
     rts
 
-;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
-sub_a8a0_cmp_fa:
+;Is the KERNAL's current device number (FA) the current IEC device?
+;Returns Z=1 if so.
+sub_a8a0_is_fa_iec:
     lda mem_03ff            ;A = copy of current IEC device number
     and #0x7f               ;Mask off bit 7
     cmp fa                  ;Compare to KERNAL current device number
