@@ -70,7 +70,6 @@
     fin = 0xce29            ;BASIC Convert an ASCII string into a numeral in FPAcc #1
     linprt = 0xcf83         ;BASIC Print 256*A + X in decimal
     ntostr = 0xcf93         ;BASIC Convert number to string
-    dhrget = 0xd077         ;BASIC Default CHRGET implementation
     pr2spc = 0xd52e         ;BASIC Print two spaces
     prtcr = 0xd534          ;BASIC Print carriage return
     wroa = 0xd717           ;MONITOR Print word at (ml1ptr) as 4 hex digits
@@ -130,12 +129,12 @@
     jmp sub_a119_jmp_lstksa     ;a033   Jumps directly to sub_a340_lstksa
 
 sub_a036_install:
-    lda #0x4c
+    lda #0x4c               ;0x4C = JMP
     sta chrget
     lda #<lab_a061_wedge
     sta chrget+1
     lda #>lab_a061_wedge
-    sta chrget+2
+    sta chrget+2            ;0070 4C 61 A0 JMP A061
     lda #0x08
     sta mem_03fe            ;Current unit number on IEC bus = 8
     jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
@@ -245,12 +244,12 @@ lab_a0e4_not_cmd:
 
     ;Wedge command is !Q (Quit)
     ;Restore normal CHRGET processing
-    lda #0xe6
-    sta chrget              ;0070 E6 77 INC $77
-    lda #<(dhrget)
-    sta chrget+1
-    lda #>(dhrget)          ;0072 D0 xx BNE xx
-    sta chrget+2
+    lda #0xe6               ;0xE6 = INC
+    sta chrget
+    lda #<txtptr
+    sta chrget+1            ;0070 E6 77 INC 77
+    lda #0xD0               ;0xD0 = BNE
+    sta chrget+2            ;0072 D0 xx BNE ...
     rts
 
 lab_a0f5_not_quit:
