@@ -46,6 +46,7 @@ All commands in the VC-1541-DOS wedge are prefixed with a `!`.  The standard CBM
 | `!open#2,"filename,s,r"` | Open a file with the given secondary address on the current IEC device.  The comma and the quotes are required.  The filename can not be empty.  Note that secondary addresses 0 and 1 are special in CBM DOS and are used to load and save programs.  For general purpose file access, use a secondary address between 2 and 14. |
 | `!cmd#2` | Redirect output to the given secondary address on the current IEC device. |
 | `!print#2` | Print a blank line to the given secondary address on the current IEC device.  If `!cmd#` was started, it is automatically ended first. |
+| `!print#2,"test"` | Print an expression to the given secondary address.  Multiple expressions can be combined with a `;` such as in `print#2,"test";x;a$`.  Unlike CBM BASIC, expressions cannot be combined with a comma.  If a trailing `;` is given, do not send the CRLF at the end. |
 
 ### Additional Entry Points
 

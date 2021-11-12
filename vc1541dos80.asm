@@ -6,7 +6,7 @@
     valtyp = 0x07           ;Data type of value: 0=numeric, 0xff=string
     intflag = 0x08          ;Type of number: 0=floating point, 0x80=integer
     subflg = 0x0a           ;Subscript flag; FNX flag
-    readop = 0x0b           ;Read operation: 0=INPUT, $40=GET, $98=READ
+    readop = 0x0b           ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ
     mem_0010 = 0x10
     mem_0013 = 0x13
     mem_001f = 0x1f
@@ -60,20 +60,21 @@
     sub_bcda = 0xbcda
     iscoma = 0xbef5         ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     isaequ = 0xbef7         ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
-    ptrget = 0xc12b         ;BASIC Find a variable
-    sub_c5b0 = 0xc5b0
+    ptrget = 0xc12b         ;BASIC Find a variable; sets valtyp and varpnt
+    strmem = 0xc5b0         ;BASIC Set up string in memory
     list = 0xc5b5           ;BASIC Perform LIST; full check of parameters, including "-"
     frestr = 0xc7b5         ;BASIC Discard temporary string
     gtbytc = 0xc8d1         ;BASIC Evaluate an expr for 1-byte param (0-255), return in X
     wtxtptr = 0xc918        ;BASIC Copy FBUFPT (0x006E) to TXTPTR (0x0077)
     fin = 0xce29            ;BASIC Convert an ASCII string into a numeral in FPAcc #1
     linprt = 0xcf83         ;BASIC Print 256*A + X in decimal
-    ntostr = 0xcf93         ;BASIC Convert number to string in 0x100
+    ntostr = 0xcf93         ;BASIC Convert number to string
+    dhrget = 0xd077         ;BASIC Default CHRGET implementation
     sub_d52e = 0xd52e
     sub_d717 = 0xd717
     prtcr = 0xd534          ;BASIC Print carriage return
     hexit = 0xd78d          ;MONITOR Evaluate char in A to a hex nibble
-    lab_e787 = 0xe787       ;EDITOR Default routine for PRSCR vector
+    dprscr = 0xe787         ;EDITOR Default routine for PRSCR vector
 
     pia1_portb = 0xe812     ;PIA 1 Port B
     via_portb = 0xe840      ;VIA Port B
@@ -245,9 +246,9 @@ lab_a0e4_not_cmd:
     ;Restore normal CHRGET processing
     lda #0xe6
     sta chrget              ;0070 E6 77 INC $77
-    lda #0x77
+    lda #<(dhrget)
     sta chrget+1
-    lda #0xd0               ;0072 D0 xx BNE xx
+    lda #>(dhrget)          ;0072 D0 xx BNE xx
     sta chrget+2
     rts
 
@@ -391,13 +392,24 @@ lab_a15f_prscr:
 
 lab_a16f_not_cr:
     jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
-    jmp lab_e787            ;EDITOR Default routine for PRSCR vector
+    jmp dprscr              ;EDITOR Default routine for PRSCR vector
 
 
 ;Wedge command !PRINT#
 ;
+;Print to an already-open channel on the given secondary address
+;on the current IEC device.
+;
+;  !PRINT#2           Print a blank line to secondary address 2 (sends CRLF).
+;
+;  !PRINT#2,"TEST"    Print an expression followed by a CRLF to secondary address 2.
+;                     Multiple expressions can be combined with ";" such as
+;                     PRINT#2,"TEST";X;A$.  Unlike CBM BASIC, expressions cannot
+;                     be combined with a comma.  If a trailing ";" is given, do
+;                     not send the CRLF at the end.
+;
 lab_a175_wedge_print:
-    ;Are we in CMD# mode?  If so, the PRSCR vector points to our routine.
+    ;Are we in !CMD# mode?  If so, the PRSCR vector points to our routine.
     lda prscr
     cmp #<lab_a15f_prscr
     bne lab_a18c_not_in_cmd
@@ -405,63 +417,78 @@ lab_a175_wedge_print:
     cmp #>lab_a15f_prscr
     bne lab_a18c_not_in_cmd
 
-    ;We're in CMD# mode.  Restore the default PRSCR routine and UNLISTEN
-    ;to get out of CMD# mode.
+    ;We're in !CMD# mode.  Before we !PRINT#, restore the default
+    ;PRSCR routine and UNLISTEN to get out of CMD# mode.
 
-    lda #<lab_e787          ;EDITOR Default routine for PRSCR vector
+    lda #<dprscr            ;EDITOR Default routine for PRSCR vector
     sta prscr
-    lda #>lab_e787          ;EDITOR Default routine for PRSCR vector
+    lda #>dprscr            ;EDITOR Default routine for PRSCR vector
     sta prscr+1
 
     jsr sub_a32a_unlsn      ;Send UNLISTEN to IEC or IEEE
+    ;Fall through
 
+;We're not in !CMD# mode.  Now do the !PRINT#.
 lab_a18c_not_in_cmd:
     jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr sub_a314_listen     ;Send LISTEN to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
-    bne lab_a1ce_not
-    jsr chrget
+    bne lab_a1ce_send_crlf  ;Branch if not a comma to send CRLF, UNLISTEN, and return
 
-lab_a19f_semi:
+    ;Byte at txtptr+0 is a comma
+    jsr chrget              ;Consume the comma
+
+;Parse BASIC expression and send its value to IEC
+lab_a19f_expr_loop:
     jsr frmevl              ;BASIC Input and evaluate any expression
-    bit valtyp              ;BIT with Data type of value: 0=numeric, 0xff=string
+    bit valtyp              ;Test type of value (0=numeric, 0xff=string)
     bmi lab_a1ac_str        ;Branch if value is a string
 
-    ;Value is not a string
-    jsr ntostr              ;BASIC Convert number to string in 0x100
-    jsr sub_c5b0
+    ;Value is not a string, so convert it
+    jsr ntostr              ;BASIC Convert number to string
+    jsr strmem              ;BASIC Set up string in memory
 
+;Value is a string
 lab_a1ac_str:
     jsr frestr              ;BASIC Discard temporary string
-    sta fnlen
-    ldy #0x00
+    sta fnlen               ;FNLEN = length of string
 
-lab_a1b3_loop:
-    cpy fnlen
-    beq lab_a1bf
-    lda [mem_001f],y
+    ;Send the string to IEC
+    ldy #0x00               ;Y = 0 (string offset)
+
+lab_a1b3_str_loop:
+    cpy fnlen               ;Compare Y to length of string
+    beq lab_a1bf_eos        ;Branch if end of string reached
+
+    lda [mem_001f],y        ;A = byte from string
     jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
-    iny
-    bne lab_a1b3_loop
+    iny                     ;Increment string offset
+    bne lab_a1b3_str_loop   ;Branch if potentially more string to send
 
-lab_a1bf:
+;End of string reached
+lab_a1bf_eos:
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     cmp #';                 ;Is byte at txtptr+0 a semicolon?
-    bne lab_a1ce_not
-    ;Got a semicolon
-    jsr chrget
-    beq lab_a1dd_done
-    jmp lab_a19f_semi
+    bne lab_a1ce_send_crlf  ;Branch if not a semicolon to send CRLF, UNLISTEN, and return
 
-;Not a semicolon or comma
-lab_a1ce_not:
-    lda #0x0d
+    ;Got a semicolon, so do not send a CRLF at the end
+    jsr chrget              ;Consume semicolon
+    beq lab_a1dd_done       ;Branch if end of BASIC statement reached
+
+    ;Got more stuff after the semicolon
+    jmp lab_a19f_expr_loop ;Branch to parse BASIC after delimiter (comma or semicolon)
+
+;Byte at txtptr+0 is not a delimiter (semicolon or comma)
+lab_a1ce_send_crlf:
+    lda #0x0d               ;A = carriage return
     jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
+
     bit mem_03ff            ;Bit with copy of current IEC device number
     bpl lab_a1dd_done
-    lda #0x0a
+
+    lda #0x0a               ;A = newline
     jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
 
 lab_a1dd_done:
@@ -478,14 +505,18 @@ lab_a1e0_wedge_get:
     jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
-    ldx #0x01
-    ldy #0x02
-    lda #0x00
+    ldx #<(monbuf+1)        ;XY = pointer to MONBUF+1
+    ldy #>(monbuf+1)
+    lda #0x00               ;A = NULL (0x00) character
     sta monbuf+1            ;Store in input buffer used by MONITOR (0x200-0x250)
-    lda #0x40
-    jmp lab_a245
+    lda #0x40               ;A=0x40 (Read operation: GET)
+    jmp lab_a245_get_or_input
 
-sub_a203:
+;Read a CR-terminated string from IEC into MONBUF, set XY = MONBUF-1
+;-1 because callers copy XY to TXTPTR and call CHRGET or PTRGET, which increment TXTPTR first
+;The CR (0x0D) is replaced with NULL (0x00).
+;Jumps to ?STRING TO LONG ERROR if string did not fit
+sub_a203_read_str:
     ldx #0x00
 
 lab_a205_loop:
@@ -505,10 +536,10 @@ lab_a205_loop:
     jmp error               ;BASIC Print error message offset by X in msgs table and return to prompt
 
 lab_a21c_cr:
-    lda #0x00
-    sta monbuf,x            ;Store in input buffer used by MONITOR (0x200-0x250)
-    ldx #0xff
-    ldy #0x01
+    lda #0x00               ;A = NULL (0x00) to replace CR in buffer
+    sta monbuf,x            ;Store NULL in input buffer used by MONITOR (0x200-0x250)
+    ldx #<(monbuf-1)        ;XY = Pointer to MONBUF-1
+    ldy #>(monbuf-1)
     rts
 
 ;Wedge command !INPUT
@@ -524,71 +555,80 @@ lab_a226_wedge_input:
     sta mem_0010
     lda #',
     sta mem_01ff
-    jsr sub_a203
-    lda #0x00
+    jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into MONBUF, set XY = MONBUF-1
+    lda #0x00               ;A=0 (Read operation: 0=INPUT)
 
-lab_a245:
-    sta readop              ;Read operation: 0=INPUT, $40=GET, $98=READ
+lab_a245_get_or_input:
+    sta readop              ;Store 0 or 0x40 as Read operation: 0=INPUT, 0x40=GET, 0x98=READ
+    ;Copy pointer returned from sub_a203_read_str into INPPTR
     stx inpptr              ;INPUT, READ, and GET vector to save CHRGET
     sty inpptr+1
 
 lab_a24b_input_loop:
-    jsr ptrget
+    jsr ptrget              ;BASIC Find a variable; sets valtyp and varpnt
     sta forptr              ;Pointer: Index Variable for FOR/NEXT
     sty forptr+1
+
     lda txtptr
     ldy txtptr+1
     sta tmpptr              ;Pointer: Various temporary storage uses
     sty tmpptr+1
+
     ldx inpptr              ;INPUT, READ, and GET vector to save CHRGET
     ldy inpptr+1
     stx txtptr
     sty txtptr+1
 
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
-    bne lab_a285
+    bne lab_a285            ;Branch if not end of BASIC statement
 
-    bit readop              ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ
-    bvc lab_a277
+    ;End of BASIC statement
+    bit readop              ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ (will be 0 or 0x40 only)
+    bvc lab_a277_input      ;Branch is read operation is INPUT
 
+    ;Read operation is GET
     jsr sub_a141_acptrs     ;Read a byte from IEC or IEEE.  On IEC only, check STATUS first:
                             ;  If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
     sta monbuf              ;Store in input buffer used by MONITOR (0x200-0x250)
-    ldx #0xff
-    ldy #0x01
+    ldx #<(monbuf-1)        ;XY = pointer to MONBUF-1
+    ldy #>(monbuf-1)        ;     (-1 because CHRGET increments first)
     bne lab_a281            ;Branch always
 
-lab_a277:
+lab_a277_input:
     lda mem_0010
     bne lab_a27e
-    jsr defdev
+
+    jsr defdev              ;BASIC Restore default devices
 
 lab_a27e:
-    jsr sub_a203
+    jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into MONBUF, set XY = MONBUF-1
 
 lab_a281:
+    ;Copy pointer in XY to TXTPTR
     stx txtptr
     sty txtptr+1
 
 lab_a285:
     jsr chrget
-    bit valtyp              ;BIT with Data type of value: 0=numeric, 0xff=string
-    bpl lab_a2bd_not_str    ;Branch if not a string
+    bit valtyp              ;Test type of value (0=numeric, 0xff=string)
+    bpl lab_a2bd_numeric    ;Branch if not a string
 
     ;Value is a string
-    bit readop              ;Read operation: 0=INPUT, $40=GET, $98=READ
-    bvc lab_a299
+    bit readop              ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ (will be 0 or 0x40 only)
+    bvc lab_a299_input      ;Branch if read operation is INPUT
+
+    ;Read operation is GET
     inx
     stx txtptr
     lda #0x00
     sta schchr
     beq lab_a2a5            ;Branch always
 
-lab_a299:
+lab_a299_input:
     sta schchr
     cmp #'"
     beq lab_a2a6
-    lda #0x3a
+    lda #':
     sta schchr
     lda #',
 
@@ -600,16 +640,16 @@ lab_a2a6:
     lda txtptr
     ldy txtptr+1
     adc #0x00
-    bcc lab_a2b1
+    bcc lab_a2b1_nc
     iny
 
-lab_a2b1:
-    jsr list+1              ;Jump into BASIC Perform LIST mid-instruction
+lab_a2b1_nc:
+    jsr list+1              ;Call into BASIC Perform LIST mid-instruction
     jsr wtxtptr             ;BASIC Copy FBUFPT (0x006E) to TXTPTR (0x0077)
     jsr sub_b965
     jmp lab_a2c5
 
-lab_a2bd_not_str:
+lab_a2bd_numeric:
     jsr fin                 ;BASIC Convert an ASCII string into a numeral in FPAcc #1
     lda intflag
     jsr sub_b94d
@@ -1156,7 +1196,7 @@ lab_a585:
 lab_a586_wedge_dos:
     jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
-    bne lab_a591_more
+    bne lab_a591_more       ;Branch if end of BASIC statement not yet reached
 
     ;Nothing after @ so jump to print device status
     jmp sub_a83c_rd_cmd_ch  ;Jump out to Read the IEC command channel and print it
@@ -1166,7 +1206,7 @@ lab_a591_more:
     cmp #'U
     bne lab_a5c2_not_u
     ;Character = "U"
-    jsr chrget
+    jsr chrget              ;Consume the "U"
     jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
     txa                     ;A = evaluated integer after the "U"
 
