@@ -36,7 +36,7 @@
     prscr = 0xeb            ;Print to screen vector
     ml1ptr = 0xfb           ;Pointer: start of tape address for .S ***
     mem_00fd_r2d2 = 0xfd
-    mem_00fe = 0xfe
+    mem_00fe_bsour1 = 0xfe
     mem_00ff_count = 0xff
     mem_0102 = 0x102
     mem_0103 = 0x103
@@ -78,7 +78,7 @@
 
     pia1_portb = 0xe812     ;PIA 1 Port B
     via_portb = 0xe840      ;VIA Port B
-    via_port_a = 0xe841     ;VIA Port A
+    via_porta = 0xe841      ;VIA Port A
     via_ddrb = 0xe843       ;VIA DDR B
     via_timer_2_lo = 0xe848 ;VIA Timer 2 Low
     via_timer_2_hi = 0xe849 ;VIA Timer 2 High
@@ -827,7 +827,7 @@ sub_a390_setup:
     lda #',
     sta tapwct              ;Used with !LOAD and !VERIFY commands
     lda #0x17
-    sta via_port_a
+    sta via_porta
     lda #0x80
     sta mem_00fd_r2d2
     ;Fall through
@@ -841,50 +841,56 @@ sub_a3ad_set_fa_st:
     sta status              ;KERNAL STATUS = 0 (no error)
     rts
 
+;==================================================================================================
+;Start of code based on C64 KERNAL
+;==================================================================================================
+
+;XXX order of clklo and clkhi subroutines is swapped in c64 kernal
+
 ;Set clock line low (inverted)
 sub_a3b9_clklo:
-    lda via_port_a
+    lda via_porta
     ora #0b00010000
-    sta via_port_a
+    sta via_porta
     rts
 
 ;Set clock line high (inverted)
 sub_a3c2_clkhi:
-    lda via_port_a
+    lda via_porta
     and #0b11101111
-    sta via_port_a
+    sta via_porta
     rts
 
 ;Set data line high (inverted)
 sub_a3cb_datahi:
-    lda via_port_a
+    lda via_porta
     and #0b11011111
-    sta via_port_a
+    sta via_porta
     rts
 
 ;Set data line low (inverted)
 sub_a3d4_datalo:
-    lda via_port_a
+    lda via_porta
     ora #0b00100000
-    sta via_port_a
+    sta via_porta
     rts
 
 ;Debounce VIA PA then ASL A
-sub_a3dd_debvia:
-    lda via_port_a
-    cmp via_port_a
-    bne sub_a3dd_debvia     ;Debounce VIA PA then ASL A
-    asl a
-    rts
+sub_a3dd_debpia:
+    lda via_porta
+    cmp via_porta
+    bne sub_a3dd_debpia     ;Debounce VIA PA then ASL A
+    asl a                   ;Shift the data bit into the carry...
+    rts                     ;...and the clock into neg flag
 
-;Delay loop
-sub_a3e7_delay:
-    txa
-    ldx #0xc0
-lab_a3ea_loop:
+;Delay 1 ms using loop
+sub_a3e7_w1ms:
+    txa                     ;Save .X
+    ldx #0xc0               ;XXX value is different from C64, which has 0xB8
+lab_a3ea_w1ms1:             ;5us loop
     dex
-    bne lab_a3ea_loop
-    tax
+    bne lab_a3ea_w1ms1
+    tax                     ;Restore X
     rts
 
 ;Send TALK to IEC
@@ -896,98 +902,104 @@ sub_a3f2_listen:
     lda #0x20               ;A = 0x20 (LISTEN)
 
 lab_a3f4:
-    sta mem_87d0_torl       ;Remember if we sent TALK (0x40) or LISTEN (0x20)
+    sta mem_87d0_torl       ;XXX Remember if we sent TALK (0x40) or LISTEN (0x20)
 
 sub_a3f7_list1:
-    ora fa
+    ;Command Serial Bus Device to LISTEN
+    ora fa                  ;XXX different  Make A address for LISTEN
     pha
-    bit mem_00a0_c3p0
-    bpl lab_a408_list2
-    sec
+    bit mem_00a0_c3p0       ;Character left in buf?
+    bpl lab_a408_list2      ;No...
+
+    ;Send buffered character
+    sec                     ;Set EOI flag
     ror mem_00fd_r2d2
-    jsr sub_a423_isour
-    lsr mem_00a0_c3p0
-    lsr mem_00fd_r2d2
+    jsr sub_a423_isour      ;Send last character
+    lsr mem_00a0_c3p0       ;Buffer clear flag
+    lsr mem_00fd_r2d2       ;Clear EOI flag
 
 lab_a408_list2:
-    pla
+    pla                     ;TALK/LISTEN address
     sta bsour               ;IEEE byte buffer for output (FF means no character)
     sei
     jsr sub_a3cb_datahi     ;Set data line high (inverted)
-    cmp #0x3f
-    bne lab_a416
+    cmp #0x3f               ;CLKHI only on UNLISTEN
+    bne lab_a416_list5
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
 
-lab_a416:
+lab_a416_list5:
     jsr sub_a4aa_atnon      ;a416  20 aa a4   Assert ATN (turns bit 3 of VIA PORT A on)
-
+                            ;XXX different from C64 but does the same thing
 sub_a419_isoura:
     sei
     jsr sub_a3b9_clklo      ;Set clock line low (inverted)
     jsr sub_a3cb_datahi     ;Set data line high (inverted)
-    jsr sub_a3e7_delay      ;Delay loop
+    jsr sub_a3e7_w1ms       ;Delay 1 ms
 
 sub_a423_isour:
     sei
-    jsr sub_a3cb_datahi     ;Set data line high (inverted)
-    jsr sub_a3dd_debvia     ;Debounce VIA PA then ASL A
+    jsr sub_a3cb_datahi     ;Make sure data is released / Set data line high (inverted)
+    jsr sub_a3dd_debpia     ;Data should be low / Debounce VIA PA then ASL A
     bcs lab_a490_nodev      ;Branch to device not present error
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
-    bit mem_00fd_r2d2
+    bit mem_00fd_r2d2       ;EOI flag test
     bpl lab_a43d_noeoi
 
+;Do the EOI
 lab_a433_isr02:
-    jsr sub_a3dd_debvia     ;Debounce VIA PA then ASL A
+    jsr sub_a3dd_debpia     ;Wait for DATA to go high / Debounce VIA PA then ASL A
     bcc lab_a433_isr02
 
 lab_a438_isr03:
-    jsr sub_a3dd_debvia     ;Debounce VIA PA then ASL A
+    jsr sub_a3dd_debpia     ;Wait for DATA to go low / Debounce VIA PA then ASL A
     bcs lab_a438_isr03
 
 lab_a43d_noeoi:
-    jsr sub_a3dd_debvia     ;Debounce VIA PA then ASL A
+    jsr sub_a3dd_debpia     ;Wait for DATA high / Debounce VIA PA then ASL A
     bcc lab_a43d_noeoi
     jsr sub_a3b9_clklo      ;Set clock line low (inverted)
-    lda #0x08
+
+    ;Set to send data
+    lda #0x08               ;Count 8 bits
     sta mem_00ff_count
 
 lab_a449_isr01:
-    lda via_port_a
-    cmp via_port_a
+    lda via_porta          ;Debounce the bus
+    cmp via_porta
     bne lab_a449_isr01
-    asl a
-    bcc lab_a493_frmerr     ;XXX C64 KERNAL says frame error
-    ror bsour               ;IEEE byte buffer for output (FF means no character)
+    asl a                   ;Set the flags
+    bcc lab_a493_frmerr     ;Data must be high
+    ror bsour               ;Next bit into carray
     bcs lab_a45d_isrhi
     jsr sub_a3d4_datalo     ;Set data line low (inverted)
-    bne lab_a460
+    bne lab_a460_isrclk
 
 lab_a45d_isrhi:
     jsr sub_a3cb_datahi     ;Set data line high (inverted)
 
-lab_a460:
+lab_a460_isrclk:
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
     nop
     nop
     nop
     nop
-    lda via_port_a
-    and #0xdf
-    ora #0x10
-    sta via_port_a
+    lda via_porta
+    and #(0xff-0x20)        ;Data high
+    ora #0x10               ;Clock low
+    sta via_porta
     dec mem_00ff_count
     bne lab_a449_isr01
-    lda #0x00
+    lda #0x00               ;XXX does not match C64 KERNAL
     sta via_timer_2_lo
-    lda #0x04
+    lda #0x04               ;Trigger timer
     sta via_timer_2_hi
-    lda via_ifr
+    lda via_ifr             ;Clear the timer flags
 
 lab_a482_isr04:
     lda via_ifr
     and #0x20               ;XXX does not match C64 KERNAL
     bne lab_a493_frmerr     ;Branch to write timeout error
-    jsr sub_a3dd_debvia     ;Debounce VIA PA then ASL A
+    jsr sub_a3dd_debpia     ;Debounce VIA PA then ASL A
     bcs lab_a482_isr04
     cli
     rts
@@ -997,74 +1009,77 @@ lab_a490_nodev:
     .byte 0x2c              ;Skip next instruction
 
 lab_a493_frmerr:
-    lda #0b00000011         ;A = status bits for timeout while writing XXX
+    lda #0b00000011         ;A = status bits for framing error
 
+;Commodore Serial Bus Error Entry
 lab_a495_csberr:
-    jsr sub_a580_st_or_a    ;KERNAL STATUS = STATUS | A
-    cli
-    clc
-    bcc lab_a4f3_dlabye     ;Branch always
+    jsr sub_a580_udst       ;KERNAL STATUS = STATUS | A
+    cli                     ;IRQ's were off...turn on
+    clc                     ;Make sure no KERNAL error returned
+    bcc lab_a4f3_dlabye     ;Branch always to turn ATN off, release all lines
 
 ;Send secondary address for LISTEN to IEC
 sub_a49c_second:
-    sta bsour
-    jsr sub_a419_isoura
+    sta bsour               ;Buffer character
+    jsr sub_a419_isoura     ;Send it
 
-;Release ATN
+;Release ATN after LISTEN
 sub_a4a1_scatn:
-    lda via_port_a
-    and #0b11110111
-    sta via_port_a
+    lda via_porta
+    and #0xff-0x08
+    sta via_porta          ;Release ATN
     rts
 
 ;Assert ATN
-;Note: this routine does not exist in the C64 KERNAL
+;XXX this routine does not exist in the C64 KERNAL
 ;Turn bit 3 of VIA PORT A on (ATN out)
 sub_a4aa_atnon:
-    lda via_port_a
-    ora #0b00001000
-    sta via_port_a
+    lda via_porta
+    ora #0x08
+    sta via_porta
     rts
 
 ;Assert ATN on IEEE (turns bit 2 of VIA PORT B off)
+;XXX obviously being IEEE this routine does not exist in C64 KERNAL
 sub_a4b3_ieee_aton:
     lda via_portb
-    and #0b11111011
+    and #0xff-0x04
     sta via_portb
     rts
 
 ;Send secondary address for TALK to IEC
 sub_a4bc_tksa:
-    sta bsour
-    jsr sub_a419_isoura
-    sei
+    sta bsour               ;Buffer character
+    jsr sub_a419_isoura     ;Send secondary address
+    sei                     ;No IRQ's here
     jsr sub_a3d4_datalo     ;Set data line low (inverted)
     jsr sub_a4a1_scatn      ;Release ATN
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
 
 lab_a4cb_tkatn1:
-    jsr sub_a3dd_debvia     ;Debounce VIA PA then ASL A
+    jsr sub_a3dd_debpia     ;Wait for clock to go low / Debounce VIA PA then ASL A
     bmi lab_a4cb_tkatn1
-    cli
+    cli                     ;IRQ's okay now
     rts
 
 ;Send a byte to IEC
 ;Buffered output to IEC
 sub_a4d2_ciout:
-    bit mem_00a0_c3p0
-    bmi lab_a4db_ci2
-    sec
-    ror mem_00a0_c3p0
-    bne lab_a4e0_ci4
+    bit mem_00a0_c3p0       ;Buffered char?
+    bmi lab_a4db_ci2        ;Yes...send last
+
+    sec                     ;No...
+    ror mem_00a0_c3p0       ;Set buffered char flag
+    bne lab_a4e0_ci4        ;Branch always
 
 lab_a4db_ci2:
-    pha
-    jsr sub_a423_isour
-    pla
+    pha                     ;Save current char
+    jsr sub_a423_isour      ;Send last char
+    pla                     ;Restore current char
 
 lab_a4e0_ci4:
-    sta bsour
-    clc
+    sta bsour               ;Buffer current char
+    clc                     ;Carry-Good exit
     rts
 
 ;Send UNTALK to IEC
@@ -1078,27 +1093,30 @@ sub_a4e4_untlk:
 ;Send UNLISTEN to IEC
 sub_a4ef_unlsn:
     lda #0x3f               ;A = 0x3F (UNLISTEN)
+    jsr sub_a3f7_list1      ;Send it
 
-    jsr sub_a3f7_list1
-
+;Release all lines
 lab_a4f3_dlabye:
-    jsr sub_a4a1_scatn
+    jsr sub_a4a1_scatn      ;Always release ATN
 
+;Delay then release close and data
 sub_a4f6_dladlh:
-    txa
-    ldx #0x0a
+    txa                     ;Delay approx 60 us
+    ldx #10
 
 lab_a4f9_dlad00:
     dex
     bne lab_a4f9_dlad00
     tax
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
-    lda #0x00
-    sta mem_00a0_c3p0
+
+    lda #0x00               ;XXX different from C64 KERNAL
+    sta mem_00a0_c3p0       ;XXX
+
     jmp sub_a3cb_datahi     ;Set data line high (inverted)
 
 ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
-;This is unique to VC-1541-DOS and is not from the C64 KERNAL.
+;XXX This is unique to VC-1541-DOS and is not from the C64 KERNAL.
 sub_a507_acptrs:
     lda status              ;A = last status
     beq sub_a50e_acptr      ;Branch to do ACPTR if status is OK
@@ -1107,85 +1125,96 @@ sub_a507_acptrs:
     rts
 
 ;Read a byte from IEC
+;Input a byte from serial bus
 sub_a50e_acptr:
-    sei
-    lda #0x00
+    sei                     ;No IRQ allowed
+    lda #0x00               ;Set EOI/ERROR Flag
     sta mem_00ff_count
-    jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
+    jsr sub_a3c2_clkhi      ;Make sure clock line is released / Set clock line high (inverted)
 
-lab_a516:
-    jsr sub_a3dd_debvia     ;Debounce VIA PA then ASL A
-    bpl lab_a516
+lab_a516_acp00a:
+    jsr sub_a3dd_debpia     ;Wait for clock high / Debounce VIA PA then ASL A
+    bpl lab_a516_acp00a
 
-lab_a51b:
-    lda #0x00
-    sta via_timer_2_lo
-    lda #0x01
-    sta via_timer_2_hi
-    jsr sub_a3cb_datahi     ;Set data line high (inverted)
-    lda via_ifr
+lab_a51b_eoiacp:
+    lda #0x00               ;XXX
+    sta via_timer_2_lo      ;XXX Order of VIA registers is different
+    lda #0x01               ;XXX from C64 KERNAL, but values are the same
+    sta via_timer_2_hi      ;XXX
 
-lab_a52b:
-    lda via_ifr
-    and #0x20
-    bne lab_a539
-    jsr sub_a3dd_debvia     ;Debounce VIA PA then ASL A
-    bmi lab_a52b
-    bpl lab_a551
+    jsr sub_a3cb_datahi     ;Data line high (Makes timing more like VIC-20) / Set data line high (inverted)
+    lda via_ifr             ;Clear the timer flags
 
-lab_a539:
-    lda mem_00ff_count
-    beq lab_a542
-    lda #0b00000010         ;A = status bit for timeout error
-    jmp lab_a495_csberr
+lab_a52b_acp00:
+    lda via_ifr             ;Check the timer
+    and #0x20               ;XXX Different from C64 KERNAL
+    bne lab_a539_acp00b     ;Ran out...
+    jsr sub_a3dd_debpia     ;Check the clock line / Debounce VIA PA then ASL A
+    bmi lab_a52b_acp00      ;No, not yet
+    bpl lab_a551_acp01      ;Yes...
 
-lab_a542:
+lab_a539_acp00b:
+    lda mem_00ff_count      ;Check for error (twice thru timeouts)
+    beq lab_a542_acp00c
+    lda #2                  ;A = status bit for timeout error
+    jmp lab_a495_csberr     ;ST = 2 read timeout
+
+;Timer ran out, do an EOI thing
+lab_a542_acp00c:
     jsr sub_a3d4_datalo     ;Set data line low (inverted)
-    jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
+    jsr sub_a3c2_clkhi      ;Delay and then set DATAHI (fix for 40us C64) / Set clock line high (inverted)
     lda #0b01000000         ;A = status bit for End of File (EOF)
-    jsr sub_a580_st_or_a    ;KERNAL STATUS = STATUS | A
-    inc mem_00ff_count
-    bne lab_a51b
+    jsr sub_a580_udst       ;KERNAL STATUS = STATUS | A
+    inc mem_00ff_count      ;Go around again for error check on EOI
+    bne lab_a51b_eoiacp
 
-lab_a551:
-    lda #0x08
+;Do the byte transfer
+lab_a551_acp01:
+    lda #0x08               ;Set up counter
     sta mem_00ff_count
 
-lab_a555:
-    lda via_port_a
-    cmp via_port_a
-    bne lab_a555
-    asl a
-    bpl lab_a555
-    ror mem_00fe
+lab_a555_acp03:
+    lda via_porta          ;Wait for clock high
+    cmp via_porta          ;Debounce
+    bne lab_a555_acp03
+    asl a                   ;Shift data into carry
+    bpl lab_a555_acp03      ;Clock still low...
+    ror mem_00fe_bsour1     ;Rotate data in
 
-lab_a562:
-    lda via_port_a
-    cmp via_port_a
-    bne lab_a562
+lab_a562_acp03a:
+    lda via_porta          ;Wait for clock low
+    cmp via_porta          ;Debounce
+    bne lab_a562_acp03a
     asl a
-    bmi lab_a562
+    bmi lab_a562_acp03a
     dec mem_00ff_count
-    bne lab_a555
+    bne lab_a555_acp03      ;More bits...
+    ;...exit...
     jsr sub_a3d4_datalo     ;Set data line low (inverted)
-    bit status
-    bvc lab_a57b
-    jsr sub_a4f6_dladlh
+    bit status              ;Check for EOI
+    bvc lab_a57b_acp04      ;None...
 
-lab_a57b:
-    lda mem_00fe
-    cli
-    clc
+    jsr sub_a4f6_dladlh     ;Delay then set data high
+
+lab_a57b_acp04:
+    lda mem_00fe_bsour1
+    cli                     ;IRQ is OK
+    clc                     ;Good exit
     rts
 
 ;KERNAL STATUS = STATUS or A
-sub_a580_st_or_a:
+sub_a580_udst:
     ora status
     sta status
     rts
 
-lab_a585:
-    rts
+;XXX never used
+sub_a585_settmo:
+    rts                     ;XXX no timeout is actually set
+
+;==================================================================================================
+;End of code based on C64 KERNAL
+;==================================================================================================
 
 ;Wedge Command !@
 ;
@@ -1573,7 +1602,7 @@ lab_a75e_no_stop:
 
     ;VERIFY failed
     lda #0b00010000         ;A = status bit for VERIFY error
-    jsr sub_a580_st_or_a    ;KERNAL STATUS = STATUS | A
+    jsr sub_a580_udst       ;KERNAL STATUS = STATUS | A
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
     jsr sub_a65e_close      ;Send CLOSE to IEC
 
