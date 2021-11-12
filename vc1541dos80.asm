@@ -87,7 +87,7 @@
 
     talk = 0xf0d2           ;KERNAL Send TALK to IEEE
     listen = 0xf0d5         ;KERNAL Send LISTEN to IEEE
-    untorl = 0xf0d7         ;KERNAL Send UNTALK or UNLISTEN to IEEE
+    sndcmd = 0xf0d7         ;KERNAL Send a command byte to IEEE
     isour = 0xf109          ;KERNAL Send last byte to IEEE
     second = 0xf143         ;KERNAL Send Secondary Address to IEEE
     scatn = 0xf148          ;KERNAL Release ATN on IEEE
@@ -112,7 +112,7 @@
     jmp sub_a036_install        ;a000   Install the wedge with CHRGET patch
     jmp sub_a09c_wedge_eval     ;a003   Evaluate and perform wedge command at txtptr+0
     jmp sub_a377_isour          ;a006   Send last byte to IEC or IEEE
-    jmp sub_a382_untorl         ;a009   Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
+    jmp sub_a382_sndcmd         ;a009   Send a command byte to IEC or IEEE
     jmp sub_a128_open           ;a00c   Send OPEN to IEC or IEEE
     jmp sub_a128_close          ;a00f   Send CLOSE to IEC or IEEE
     jmp sub_a141_acptrs         ;a012   Read a byte from IEC or IEEE
@@ -280,7 +280,7 @@ lab_a106_wedge_devnum:
 ;
 lab_a10f_wedge_load:
     lda #0                  ;A = 0 (LOAD)
-    .byte 0x2c              ;Skip next instruction
+    .byte 0x2c              ;Skip next 2 bytes
 
 ;Wedge command !VERIFY
 ;
@@ -803,17 +803,19 @@ lab_a37f_not_iec:
     jmp isour               ;KERNAL Send last byte to IEEE
 
 
-;Send UNTALK or UNLISTEN to IEC or IEEE (XXX really?)
-sub_a382_untorl:
+;Send a command byte to IEC or IEEE
+;Command byte in A can be 0x20=LISTEN, 0x3F=UNLISTEN, 0x40=TALK, 0x5F=UNTALK
+;and this routine will OR it with the device address (FA).
+sub_a382_sndcmd:
     pha
     jsr sub_a8a0_cmp_fa     ;Compare (copy of current IEC dev num & 0x7F) to KERNAL current dev num FA
     bne lab_a38c_not_iec
     pla
-    jmp lab_a3f4
+    jmp lab_a3f4_sndcmd     ;Send a command byte to IEC
 
 lab_a38c_not_iec:
     pla
-    jmp untorl              ;KERNAL Send UNTALK or UNLISTEN to IEEE
+    jmp sndcmd              ;KERNAL Send a command byte to IEEE
 
 
 ;Set up VIA, set FA = IEC device, STATUS = 0
@@ -894,20 +896,27 @@ lab_a3ea_w1ms1:             ;5us loop
     rts
 
 ;Send TALK to IEC
+;XXX different from C64 KERNAL
 sub_a3ef_talk:
     lda #0x40               ;A = 0x40 (TALK)
-    .byte 0x2c              ;Skip next instruction
+    .byte 0x2c              ;Skip next 2 bytes
 
+;Send LISTEN to IEC
+;XXX different from C64 KERNAL
 sub_a3f2_listen:
     lda #0x20               ;A = 0x20 (LISTEN)
+    ;Fall through
 
-lab_a3f4:
-    sta mem_87d0_torl       ;XXX Remember if we sent TALK (0x40) or LISTEN (0x20)
+;Send a command byte to IEC
+;XXX different from C64 KERNAL
+lab_a3f4_sndcmd:
+    sta mem_87d0_torl       ;Remember if we sent TALK (0x40) or LISTEN (0x20)
 
 sub_a3f7_list1:
-    ;Command Serial Bus Device to LISTEN
-    ora fa                  ;XXX different  Make A address for LISTEN
+    ora fa                  ;XXX different from C64 KERNAL
+                            ;OR the command with FA (device address)
     pha
+
     bit mem_00a0_c3p0       ;Character left in buf?
     bpl lab_a408_list2      ;No...
 
@@ -1006,7 +1015,7 @@ lab_a482_isr04:
 
 lab_a490_nodev:
     lda #0b10000000         ;A = status bit for device not present error
-    .byte 0x2c              ;Skip next instruction
+    .byte 0x2c              ;Skip next 2 bytes
 
 lab_a493_frmerr:
     lda #0b00000011         ;A = status bits for framing error
@@ -1088,7 +1097,7 @@ sub_a4e4_untlk:
     jsr sub_a3b9_clklo      ;Set clock line low (inverted)
     jsr sub_a4aa_atnon      ;Assert ATN (turns bit 3 of VIA PORT A on)
     lda #0x5f               ;A = 0x5F (UNTALK)
-    .byte 0x2c              ;Skip next instruction
+    .byte 0x2c              ;Skip next 2 bytes
 
 ;Send UNLISTEN to IEC
 sub_a4ef_unlsn:
