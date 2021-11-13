@@ -12,13 +12,19 @@ This source code is written for the `as6500` assembler, which is part of Alan Ba
 $ make
 ```
 
-It will output a binary file that is bit-for-bit identical to the original `VC-1541-DOS/80` EPROM.  It will also produce a listing file that shows the assembled bytes alongside the source lines.  See the `Makefile` for the individual commands.  
+It will output a binary file that is bit-for-bit identical to the original `VC-1541-DOS/80` EPROM.  The original EPROM was a 2532 (4K) for the UD11 ($A000) socket.  A listing file will also be produced that shows the assembled bytes alongside the source lines.  See the `Makefile` for the individual commands.  
 
-The EPROM installs in the UD11 ($A000) socket.  It is 4K and can be burned into a 2532.  You can also build a version for UD12 ($9000) by changing the start address at the top of the assembly file.  This is useful if you already have a ROM in UD11, such as PaperClip or WordPro.
+A custom version for $9000 can also be built:
+
+```
+$ make START=0x9000
+```
+
+It can be installed in the UD12 socket.  This is useful if you already have a different ROM in UD11, such as PaperClip or WordPro.
 
 ## Requirements
 
-- BASIC 4.0.  The code makes many calls into the BASIC 4.0 ROMs, and not only into the well-known entry points.
+- BASIC 4.0.  The code makes many calls that are specific to the BASIC 4.0 ROMs.
 
 - Due to its use of location $87D0, the code requires an 80-column machine to fully function.  $87D0 is in the 80-column screen RAM but is not part of the visible screen.  This location is required for the wedge commands `!print#`, `!get#`, `!input#`, and `!cmd#`.  These will not work correctly on a 40-column machine.  However, the other commands will work.
 

@@ -1,5 +1,5 @@
-    .area CODE1 (ABS)
-    .org 0xa000
+;VC-1541-DOS/80
+;Reverse-engineered source code
 
     schchr = 0x03           ;Search character
     qteflg = 0x04           ;Scan-between-quotes flag
@@ -106,6 +106,11 @@
     close = 0xf72f          ;KERNAL Send CLOSE to IEEE
     stop = 0xf92b           ;KERNAL Test STOP key and act if pressed
     chrout = 0xffd2         ;KERNAL Send a char to the current output device
+
+    ;VC-1541-DOS/80 was originally for 0xA000 (socket UD11) but this source is relocatable.
+    ;It also works at 0x9000 (socket UD12) if the origin address is changed.  The origin
+    ;address can be changed in the Makefile.
+    .area vc1541dos
 
     ;Entry points at the beginning of the ROM
 

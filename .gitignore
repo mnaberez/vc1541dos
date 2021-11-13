@@ -1,2 +1,7 @@
-out.*
+*.bin
+*.hlr
+*.ihx
+*.lst
+*.rel
+*.rst
 *.sha1

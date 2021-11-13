@@ -19,5 +19,8 @@ jobs:
     - name: Install srecord
       run: sudo apt-get install srecord
 
-    - name: Assemble the binary
+    - name: Assemble the original binary
       run: make list diff
+
+    - name: Assemble a custom binary for 0x9000
+      run: make START=0x9000 list
