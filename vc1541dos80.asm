@@ -39,7 +39,6 @@
     mem_00fe_bsour1 = 0xfe
     mem_00ff_count = 0xff
     stkbot = 0x100          ;Lowest address of the stack page
-    mem_01ff = 0x1ff
     monbuf = 0x200          ;Input buffer used by MONITOR (0x200-0x250)
     dosbuf = 0x353          ;DOS command string buffer (0x353-0x380)
     mem_03fe = 0x3fe        ;Current device number on IEC bus (default 8)
@@ -584,8 +583,8 @@ lab_a226_wedge_input:
     lda mem_03ff            ;A = copy of current IEC device number
     and #0x7f
     sta mem_0010
-    lda #0x2c
-    sta mem_01ff
+    lda #',                 ;Add a comma before the buffer so every chunk start with a comma.
+    sta monbuf-1            ;See "Programming the PET/CBM" page 79 "How INPUT and INPUT# Work"
     jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into MONBUF, set XY = MONBUF-1
     lda #0x00               ;A=0 (Read operation: 0=INPUT)
 
