@@ -39,7 +39,7 @@
     mem_00fe_bsour1 = 0xfe
     mem_00ff_count = 0xff
     stkbot = 0x100          ;Lowest address of the stack page
-    monbuf = 0x200          ;Input buffer used by MONITOR (0x200-0x250)
+    inpbuf = 0x200          ;Buffer used by INPUT, also MONITOR work area (0x200-0x250)
     dosbuf = 0x353          ;DOS command string buffer (0x353-0x380)
     mem_03fe = 0x3fe        ;Current device number on IEC bus (default 8)
     mem_03ff = 0x3ff        ;Copy of current IEC device number
@@ -535,14 +535,14 @@ lab_a1e0_wedge_get:
     jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
-    ldx #<(monbuf+1)        ;XY = pointer to MONBUF+1
-    ldy #>(monbuf+1)
+    ldx #<(inpbuf+1)        ;XY = pointer to inpbuf+1
+    ldy #>(inpbuf+1)
     lda #0x00               ;A = NULL (0x00) character
-    sta monbuf+1            ;Store in input buffer used by MONITOR (0x200-0x250)
+    sta inpbuf+1            ;Store in INPUT buffer (0x200-0x250)
     lda #0x40               ;A=0x40 (Read operation: GET)
     jmp lab_a245_get_or_input
 
-;Read a CR-terminated string from IEC into MONBUF, set XY = MONBUF-1
+;Read a CR-terminated string from IEC into INPBUF, set XY = INPBUF-1
 ;-1 because callers copy XY to TXTPTR and call CHRGET or PTRGET, which increment TXTPTR first
 ;The CR (0x0D) is replaced with NULL (0x00).
 ;Jumps to ?STRING TO LONG ERROR if string did not fit
@@ -555,21 +555,21 @@ lab_a205_loop:
     cmp #0x0d
     beq lab_a21c_cr         ;Branch if a carriage return was received or if an error occurred
 
-    sta monbuf,x            ;Store in input buffer used by MONITOR (0x200-0x250)
+    sta inpbuf,x            ;Store in INPUT buffer (0x200-0x250)
     inx
     cpx #0x51
     bne lab_a205_loop       ;Branch to get another byte if still within buffer size
 
-    ;Next byte would exceed MONBUF buffer size
+    ;Next byte would exceed INPBUF buffer size
     jsr sub_a335_untlk      ;Send UNTALK to IEC or IEEE
     ldx #0xb0               ;X = 0xB0 (?STRING TOO LONG ERROR)
     jmp error               ;BASIC Print error message offset by X in msgs table and return to prompt
 
 lab_a21c_cr:
     lda #0x00               ;A = NULL (0x00) to replace CR in buffer
-    sta monbuf,x            ;Store NULL in input buffer used by MONITOR (0x200-0x250)
-    ldx #<(monbuf-1)        ;XY = Pointer to MONBUF-1
-    ldy #>(monbuf-1)
+    sta inpbuf,x            ;Store NULL in INPUT buffer (0x200-0x250)
+    ldx #<(inpbuf-1)        ;XY = Pointer to inpbuf-1
+    ldy #>(inpbuf-1)
     rts
 
 ;Wedge command !INPUT
@@ -583,9 +583,9 @@ lab_a226_wedge_input:
     lda mem_03ff            ;A = copy of current IEC device number
     and #0x7f
     sta mem_0010
-    lda #',                 ;Add a comma before the buffer so every chunk start with a comma.
-    sta monbuf-1            ;See "Programming the PET/CBM" page 79 "How INPUT and INPUT# Work"
-    jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into MONBUF, set XY = MONBUF-1
+    lda #',                 ;Add a comma before INPUT buffer so every chunk start with a comma.
+    sta inpbuf-1            ;See "Programming the PET/CBM" page 79 "How INPUT and INPUT# Work"
+    jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into inpbuf, set XY = inpbuf-1
     lda #0x00               ;A=0 (Read operation: 0=INPUT)
 
 lab_a245_get_or_input:
@@ -619,9 +619,9 @@ lab_a24b_input_loop:
     ;Read operation is GET
     jsr sub_a141_acptrs     ;Read a byte from IEC or IEEE.  On IEC only, check STATUS first:
                             ;  If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
-    sta monbuf              ;Store in input buffer used by MONITOR (0x200-0x250)
-    ldx #<(monbuf-1)        ;XY = pointer to MONBUF-1
-    ldy #>(monbuf-1)        ;     (-1 because CHRGET increments first)
+    sta inpbuf              ;Store in input buffer used by MONITOR (0x200-0x250)
+    ldx #<(inpbuf-1)        ;XY = pointer to inpbuf-1
+    ldy #>(inpbuf-1)        ;     (-1 because CHRGET increments first)
     bne lab_a281            ;Branch always
 
 lab_a277_input:
@@ -631,7 +631,7 @@ lab_a277_input:
     jsr defdev              ;BASIC Restore default devices
 
 lab_a27e:
-    jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into MONBUF, set XY = MONBUF-1
+    jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into inpbuf, set XY = inpbuf-1
 
 lab_a281:
     ;Copy pointer in XY to TXTPTR
