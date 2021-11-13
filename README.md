@@ -37,14 +37,14 @@ All commands in the VC-1541-DOS wedge are prefixed with a `!`.  The standard CBM
 | Command | Description |
 | ------- | ----------- |
 | `!q` | Quit.  Uninstalls the VC-1541-DOS wedge. |
-| `!9` | Change the current IEC device number to the given device number.  When the wedge is installed, it defaults to device 8.  It can also be changed with `poke 1022,9`. |
+| `!9@` | Change the current IEC device number to the given number and then perform the another wedge command.  Any command may follow the device number, such as `!9@`, `!9load"filename"`, or `!9open#2,"filename"`.  The command is required (`!9` alone is not valid).  When the wedge is installed, it defaults to device 8.  |
 | `!@` | Read the command channel on the current IEC device and print it. |
 | `!@"s0:filename"` | Send a CBM DOS command to the command channel on the current IEC device.  The command must be quoted. |
 | `!u9` | Reprogram the device number of the current IEC device to the given device number.  This sends an `M-W` command to overwrite locations `$77` and `$78` in the drive, as described in the 1541 User's Guide. The current IEC device number will also be switched to the new device number. |
 | `!catalog` | Read the directory on the current IEC device.  This is equivalent to `!catalog"$"`. |
 | `!catalog"$0:foo*"` | Read the directory on the current IEC device with the given search pattern.  Enter the search pattern the same as you would with `load"$0:foo*",8` in CBM BASIC. |
 | `!load"filename"` | Load a program from the current IEC device into the BASIC program area. |
-|  `!load"filename",027a` | Load a program from the current IEC device starting at the given addres.  Only a start address is supported.  It must be four hexadecimal digits. | |
+| `!load"filename",027a` | Load a program from the current IEC device starting at the given addres.  Only a start address is supported.  It must be four hexadecimal digits. | |
 | `!verify"filename"` | Verify a program on the current IEC device against the BASIC program area. |
 | `!verify"filename",027a` | Verify a program on the current IEC device against the given addres.  Only a start address is supported.  It must be four hexadecimal digits. |
 | `!save"filename"` | Save a BASIC program to the current IEC device. |

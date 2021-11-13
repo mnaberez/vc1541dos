@@ -24,7 +24,7 @@
     verchk = 0x9d           ;KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     mem_00a0_c3p0 = 0xa0
     bsour = 0xa5            ;IEEE byte buffer for output (FF means no character)
-    tapend = 0xab           ;End of tape input flag ***
+    tapend = 0xab           ;Preserves X in CHRGET wedge ***
     ealptr = 0xb7           ;Pointer: end address for SAVE ***
     tapwct = 0xba           ;Tape write countdown ***
     salptr = 0xc9           ;Pointer: start address for LOAD or SAVE ***
@@ -38,8 +38,7 @@
     mem_00fd_r2d2 = 0xfd
     mem_00fe_bsour1 = 0xfe
     mem_00ff_count = 0xff
-    mem_0102 = 0x102
-    mem_0103 = 0x103
+    stkbot = 0x100          ;Lowest address of the stack page
     mem_01ff = 0x1ff
     monbuf = 0x200          ;Input buffer used by MONITOR (0x200-0x250)
     dosbuf = 0x353          ;DOS command string buffer (0x353-0x380)
@@ -61,6 +60,8 @@
     extra = 0xbcda          ;BASIC ?EXTRA IGNORED if INPPTR is not at end of buffer
     iscoma = 0xbef5         ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     isaequ = 0xbef7         ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
+    lab_bf24 = 0xbf24
+    lab_b8c2 = 0xb8c2
     ptrget = 0xc12b         ;BASIC Find a variable; sets valtyp and varpnt
     strmem = 0xc5b0         ;BASIC Set up string in memory
     list = 0xc5b5           ;BASIC Perform LIST; full check of parameters, including "-"
@@ -153,40 +154,57 @@ banner:
 
 lab_a061_wedge:
     inc txtptr
-    bne lab_a067
+    bne lab_a067_nc
     inc txtptr+1
 
-lab_a067:
+lab_a067_nc:
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     php
-    cmp #'!
-    bne lab_a090_wedge_done
-    stx tapend              ;End of tape input flag
+
+    cmp #'!                 ;Is it the wedge character?
+    bne lab_a090_not_exc    ;Branch if not
+
+    ;Got the wedge character; now look at the return address
+    ;on the stack to see if we should parse it
+
+    stx tapend              ;Save X before we use it
     tsx
-    lda mem_0103,x
-    cmp #0xbf
-    beq lab_a07d
-    cmp #0xb8
-    bne lab_a08c
+    lda stkbot+3,x          ;A = high byte of (return address - 1)
 
-lab_a07d:
-    lda mem_0102,x
-    cmp #0x23
-    beq lab_a092
-    cmp #0xc1
-    bne lab_a08c
+    cmp #>(lab_bf24-1)
+    beq lab_a07d_bf_or_b8   ;Branch if high byte is 0xBF
+
+    cmp #>(lab_b8c2-1)
+    bne lab_a08c_ignore_exc ;Branch if high byte is not 0xB8
+
+    ;High byte is 0xB8
+
+;High byte of return address is 0xBF or 0xB8
+lab_a07d_bf_or_b8:
+    lda stkbot+2,x          ;A = low byte of (return address - 1)
+
+    cmp #<(lab_bf24-1)
+    beq lab_a092_parse_exc  ;Branch to parse if return address is 0xBF24
+
+    cmp #<(lab_b8c2-1)
+    bne lab_a08c_ignore_exc ;Branch to ignore if return address is not 0xB8C2
+
+    ;Return address is 0xB8C2
     lda facexp
-    bne lab_a092
+    bne lab_a092_parse_exc
 
-lab_a08c:
-    ldx tapend
-    lda #'!
+;Character is a "!" but we are not parsing it
+lab_a08c_ignore_exc:
+    ldx tapend              ;Restore original X
+    lda #'!                 ;Restore original A
 
-lab_a090_wedge_done:
+;Character is not a "!"
+lab_a090_not_exc:
     plp
     rts
 
-lab_a092:
+;Character is a "!" and we are parsing it
+lab_a092_parse_exc:
     plp
     jsr chrget
     lda mem_03fe            ;A = current device number on IEC bus
@@ -263,18 +281,26 @@ lab_a0f5_not_quit:
     jmp lab_a586_wedge_dos
 
 lab_a0fc_not_dos:
+    ;None of the commands matched, so we assume that a device number
+    ;follows the "!", such as in these examples:
+    ;  !9@                Change to device 9 and then read command channel
+    ;  !9LOAD"FILENAME"   Change to device 9 and then load program
+
+    ;Decrement TXTPTR so GETBYTC can parse the number
     dec txtptr
     lda txtptr
     cmp #0xff
-    bne lab_a106_wedge_devnum
+    bne lab_a106_devnum
     dec txtptr+1
 
-lab_a106_wedge_devnum:
-    ;Wedge command is !x where x is an int to change current IEC device number
+lab_a106_devnum:
+    ;Parse device number after the "!"
     jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
     stx mem_03ff            ;Save as copy of current IEC device number
-    jmp sub_a09c_wedge_eval
 
+    ;Loop to parse a wedge command after the device number.  A wedge command
+    ;must follow the device number of a ?SYNTAX ERROR will result.
+    jmp sub_a09c_wedge_eval
 
 ;Wedge command !LOAD
 ;
