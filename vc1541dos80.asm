@@ -1884,8 +1884,3 @@ sub_a8ad_parse_sa_2:
     ora #0x60               ;OR secondary address with 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
     rts
-
-;Unused space
-    .rept 1863
-    .byte 0xff
-    .endm

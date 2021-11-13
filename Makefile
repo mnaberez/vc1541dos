@@ -17,7 +17,7 @@ out.bin:
 	as6500 -l -p -w -o out.asm
 	rm -f out.asm
 	aslink out -i
-	srec_cat out.ihx -intel -offset -0xa000 -o out.bin -binary
+	srec_cat out.ihx -intel -offset -0xa000 -fill 0xff 0x0000 0x1000 -o out.bin -binary
 
 clean:
 	rm -f out.*
