@@ -294,8 +294,8 @@ lab_a0fc_not_dos:
 
 lab_a106_devnum:
     ;Parse device number after the "!"
-    jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
-    stx cur_iec_dev         ;Save as Current IEC device number for in-progress wedge command
+    jsr gtbytc+3          ;BASIC Evaluate integer 0-255, return it in X
+    stx cur_iec_dev       ;Save as Current IEC device number for in-progress wedge command
 
     ;Loop to parse a wedge command after the device number.  A wedge command
     ;must follow the device number of a ?SYNTAX ERROR will result.
@@ -981,7 +981,7 @@ lab_a408_list2:
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
 
 lab_a416_list5:
-    jsr sub_a4aa_atnon      ;a416  20 aa a4   Assert ATN (turns bit 3 of VIA PORT A on)
+    jsr sub_a4aa_atnon      ;Assert ATN (turns bit 3 of VIA PORT A on)
                             ;XXX different from C64 but does the same thing
 sub_a419_isoura:
     sei
@@ -1017,7 +1017,7 @@ lab_a43d_noeoi:
     sta mem_00ff_count
 
 lab_a449_isr01:
-    lda via_porta          ;Debounce the bus
+    lda via_porta           ;Debounce the bus
     cmp via_porta
     bne lab_a449_isr01
     asl a                   ;Set the flags
@@ -1152,7 +1152,7 @@ sub_a4ef_unlsn:
 lab_a4f3_dlabye:
     jsr sub_a4a1_scatn      ;Always release ATN
 
-;Delay then release close and data
+;Delay then release clock and data
 sub_a4f6_dladlh:
     txa                     ;Delay approx 60 us
     ldx #10
@@ -1867,28 +1867,28 @@ sub_a861_parse_addr:
     bne lab_a88c_syntax     ;  No: jump to ?SYNTAX ERROR
     ldy #0xff               ;Y=FF so it rolls to 0 on first call
     ;high byte, high nibble
-    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y
-    jsr sub_a88f_swap_nib   ;Perform ASL A four times
-    sta ml1ptr+1
+    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y (0)
+    jsr sub_a88f_lo_nib_hi  ;Rotate low nib into high nib, low nib = 0
+    sta ml1ptr+1            ;Store as pointer high byte
     ;high byte, low nibble
-    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y
-    ora ml1ptr+1
-    sta ml1ptr+1
+    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y (1)
+    ora ml1ptr+1            ;OR it with pointer high byte to add the high nibble
+    sta ml1ptr+1            ;Store as pointer high byte
+    ;low byte, high nibble
+    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y (2)
+    jsr sub_a88f_lo_nib_hi  ;Rotate low nib into high nib, low nib = 0
+    sta ml1ptr              ;Store as pointer low byte
     ;low byte, low nibble
-    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y
-    jsr sub_a88f_swap_nib   ;Perform ASL A four times
-    sta ml1ptr
-    ;low byte, low nibble
-    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y
-    ora ml1ptr
-    sta ml1ptr
+    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y (3)
+    ora ml1ptr              ;OR it pointer low byte to add the high nibble
+    sta ml1ptr              ;Store as pointer low byte
     rts
 
 lab_a88c_syntax:
     jmp syntax              ;?SYNTAX ERROR
 
-;Perform ASL A four times
-sub_a88f_swap_nib:
+;Rotate low nib into high nib, low nib = 0
+sub_a88f_lo_nib_hi:
     asl a
     asl a
     asl a
