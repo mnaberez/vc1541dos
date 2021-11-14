@@ -7,7 +7,7 @@
     intflag = 0x08          ;Type of number: 0=floating point, 0x80=integer
     subflg = 0x0a           ;Subscript flag; FNX flag
     readop = 0x0b           ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ
-    mem_0010 = 0x10
+    supdev = 0x10           ;Current I/O device for prompt-suppress
     mem_0013 = 0x13
     utlptr = 0x1f           ;Pointer: Utility (various uses)
     txttab = 0x28           ;Pointer: Start of BASIC text
@@ -42,7 +42,7 @@
     inpbuf = 0x200          ;Buffer used by INPUT, also MONITOR work area (0x200-0x250)
     dosbuf = 0x353          ;DOS command string buffer (0x353-0x380)
     mem_03fe = 0x3fe        ;Current device number on IEC bus (default 8)
-    mem_03ff = 0x3ff        ;Copy of current IEC device number
+    mem_03ff = 0x3ff        ;Copy of current IEC device number with bit 7 auto-linefeed flag
     mem_87d0_torl = 0x87d0  ;Stores TALK or LISTEN state: 0x40=TALK, 0x20=LISTEN
 
     rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
@@ -109,7 +109,7 @@
 
     ;VC-1541-DOS/80 was originally for 0xA000 (socket UD11) but this source is relocatable.
     ;It also works at 0x9000 (socket UD12) if the origin address is changed.  The origin
-    ;address can be changed in the Makefile.
+    ;address is set in the aslink command.
     .area vc1541dos
 
     ;Entry points at the beginning of the ROM
@@ -395,6 +395,7 @@ lab_a149_not_iec:
 ;Wedge command !CMD
 ;
 ;Redirect output to the current IEC device on the given secondary address.
+;If bit 7 of mem_03ff is set, CR will automatically be translated to CRLF.
 ;
 ;  !CMD#2   Redirect output to secondary address 2 on device FA.
 ;
@@ -413,14 +414,17 @@ lab_a14c_wedge_cmd:
 lab_a15f_prscr:
     lda datax               ;A = Current character to print
     cmp #0x0d               ;Is it a carriage return?
-    bne lab_a16f_not_cr
+    bne lab_a16f_no_lf
     ;It's a carriage return
     bit mem_03ff            ;Bit with copy of current IEC device number
-    bpl lab_a16f_not_cr
+    bpl lab_a16f_no_lf      ;Branch if auto-linefeed mode is off
+    ;Auto-linefeed mode is on
+    ;Send the CR
     jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
+    ;Send the LF
     lda #0x0a
 
-lab_a16f_not_cr:
+lab_a16f_no_lf:
     jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
     jmp dprscr              ;EDITOR Default routine for PRSCR vector
 
@@ -428,7 +432,8 @@ lab_a16f_not_cr:
 ;Wedge command !PRINT#
 ;
 ;Print to an already-open channel on the given secondary address
-;on the current IEC device.
+;on the current IEC device.  If bit 7 of mem_03ff is set, CR will
+;automatically be translated to CRLF.
 ;
 ;  !PRINT#2           Print a blank line to secondary address 2 (sends CRLF).
 ;
@@ -516,8 +521,10 @@ lab_a1ce_send_crlf:
     jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
 
     bit mem_03ff            ;Bit with copy of current IEC device number
-    bpl lab_a1dd_done
+    bpl lab_a1dd_done       ;Branch if auto-linefeed mode is off
 
+    ;Auto-linefeed mode is on
+    ;Send the LF
     lda #0x0a               ;A = newline
     jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
 
@@ -529,12 +536,15 @@ lab_a1dd_done:
 lab_a1e0_wedge_get:
     jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
+
     lda mem_03ff            ;A = copy of current IEC device number
-    and #0x7f
-    sta mem_0010
+    and #0b10000000         ;Mask off bit 7 auto-linefeed flag
+    sta supdev              ;Store as Current I/O device for prompt-suppress
     jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
+
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
+
     ldx #<(inpbuf+1)        ;XY = pointer to inpbuf+1
     ldy #>(inpbuf+1)
     lda #0x00               ;A = NULL (0x00) character
@@ -578,11 +588,14 @@ lab_a226_wedge_input:
     jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
+
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
+
     lda mem_03ff            ;A = copy of current IEC device number
-    and #0x7f
-    sta mem_0010
+    and #0b10000000         ;Mask off bit 7 auto-linefeed flag
+    sta supdev              ;Store as Current I/O device for prompt-suppress
+
     lda #',                 ;Add a comma before INPUT buffer so every chunk start with a comma.
     sta inpbuf-1            ;See "Programming the PET/CBM" page 79 "How INPUT and INPUT# Work"
     jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into inpbuf, set XY = inpbuf-1
@@ -625,7 +638,7 @@ lab_a24b_input_loop:
     bne lab_a281            ;Branch always
 
 lab_a277_input:
-    lda mem_0010
+    lda supdev              ;A = Current I/O device for prompt-suppress
     bne lab_a27e
 
     jsr defdev              ;BASIC Restore default devices
@@ -711,7 +724,7 @@ lab_a2ec:
     jsr extra               ;BASIC ?EXTRA IGNORED if INPPTR is not at end of buffer
     jsr sub_a335_untlk      ;Send UNTALK to IEC or IEEE
     lda #0x00
-    sta mem_0010
+    sta supdev              ;Store as Current I/O device for prompt-suppress
     rts
 
 copyright:
@@ -867,8 +880,9 @@ sub_a390_setup:
 ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
 sub_a3ad_set_fa_st:
     lda mem_03ff            ;A = copy of current IEC device number
-    and #0x7f
+    and #0b10000000         ;Mask off bit 7 auto-linefeed flag
     sta fa                  ;Set KERNAL current device number
+
     lda #0x00
     sta status              ;KERNAL STATUS = 0 (no error)
     rts
@@ -1289,6 +1303,7 @@ lab_a591_more:
 
     dey                     ;Now Y = 7
     and #0x0f               ;A = Force device number in range 0-15
+                            ;    (also clears bit 7 auto-linefeed flag)
     sta mem_03ff            ;Store as copy of current IEC device number
 
     ;A = new device number and is in range 0-15
@@ -1896,7 +1911,7 @@ sub_a89a_chk_stop:
 ;Returns Z=1 if so.
 sub_a8a0_is_fa_iec:
     lda mem_03ff            ;A = copy of current IEC device number
-    and #0x7f               ;Mask off bit 7
+    and #0b10000000         ;Mask off bit 7 auto-linefeed flag
     cmp fa                  ;Compare to KERNAL current device number
     rts
 
