@@ -41,8 +41,8 @@
     stkbot = 0x100          ;Lowest address of the stack page
     inpbuf = 0x200          ;Buffer used by INPUT, also MONITOR work area (0x200-0x250)
     dosbuf = 0x353          ;DOS command string buffer (0x353-0x380)
-    mem_03fe = 0x3fe        ;Current device number on IEC bus (default 8)
-    mem_03ff = 0x3ff        ;Copy of current IEC device number with bit 7 auto-linefeed flag
+    def_iec_dev = 0x3fe     ;Default device number for IEC bus (default 8)
+    cur_iec_dev = 0x3ff     ;Current IEC device number for in-progress wedge command
     mem_87d0_torl = 0x87d0  ;Stores TALK or LISTEN state: 0x40=TALK, 0x20=LISTEN
 
     rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
@@ -109,7 +109,7 @@
 
     ;VC-1541-DOS/80 was originally for 0xA000 (socket UD11) but this source is relocatable.
     ;It also works at 0x9000 (socket UD12) if the origin address is changed.  The origin
-    ;address is set in the aslink command.
+    ;address is set in the linker options (aslink command).
     .area vc1541dos
 
     ;Entry points at the beginning of the ROM
@@ -141,7 +141,7 @@ sub_a036_install:
     lda #>lab_a061_wedge
     sta chrget+2            ;0070 4C 61 A0 JMP A061
     lda #0x08
-    sta mem_03fe            ;Current unit number on IEC bus = 8
+    sta def_iec_dev         ;Default device number to use for IEC bus = 8
     jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
     lda #<banner
     ldy #>banner
@@ -206,8 +206,8 @@ lab_a090_not_exc:
 lab_a092_parse_exc:
     plp
     jsr chrget
-    lda mem_03fe            ;A = current device number on IEC bus
-    sta mem_03ff            ;Save as copy of current IEC device number
+    lda def_iec_dev         ;A = Default device number for IEC bus (default 8)
+    sta cur_iec_dev         ;Save as Current IEC device number for in-progress wedge command
 
 sub_a09c_wedge_eval:
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
@@ -295,7 +295,7 @@ lab_a0fc_not_dos:
 lab_a106_devnum:
     ;Parse device number after the "!"
     jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
-    stx mem_03ff            ;Save as copy of current IEC device number
+    stx cur_iec_dev         ;Save as Current IEC device number for in-progress wedge command
 
     ;Loop to parse a wedge command after the device number.  A wedge command
     ;must follow the device number of a ?SYNTAX ERROR will result.
@@ -395,7 +395,7 @@ lab_a149_not_iec:
 ;Wedge command !CMD
 ;
 ;Redirect output to the current IEC device on the given secondary address.
-;If bit 7 of mem_03ff is set, CR will automatically be translated to CRLF.
+;If bit 7 of cur_iec_dev is set, CR will automatically be translated to CRLF.
 ;
 ;  !CMD#2   Redirect output to secondary address 2 on device FA.
 ;
@@ -416,7 +416,7 @@ lab_a15f_prscr:
     cmp #0x0d               ;Is it a carriage return?
     bne lab_a16f_no_lf
     ;It's a carriage return
-    bit mem_03ff            ;Bit with copy of current IEC device number
+    bit cur_iec_dev         ;Test Current IEC device number for in-progress wedge command
     bpl lab_a16f_no_lf      ;Branch if auto-linefeed mode is off
     ;Auto-linefeed mode is on
     ;Send the CR
@@ -432,7 +432,7 @@ lab_a16f_no_lf:
 ;Wedge command !PRINT#
 ;
 ;Print to an already-open channel on the given secondary address
-;on the current IEC device.  If bit 7 of mem_03ff is set, CR will
+;on the current IEC device.  If bit 7 of cur_iec_dev is set, CR will
 ;automatically be translated to CRLF.
 ;
 ;  !PRINT#2           Print a blank line to secondary address 2 (sends CRLF).
@@ -520,7 +520,7 @@ lab_a1ce_send_crlf:
     lda #0x0d               ;A = carriage return
     jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
 
-    bit mem_03ff            ;Bit with copy of current IEC device number
+    bit cur_iec_dev         ;Test Current IEC device number for in-progress wedge command
     bpl lab_a1dd_done       ;Branch if auto-linefeed mode is off
 
     ;Auto-linefeed mode is on
@@ -537,8 +537,8 @@ lab_a1e0_wedge_get:
     jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
 
-    lda mem_03ff            ;A = copy of current IEC device number
-    and #0b10000000         ;Mask off bit 7 auto-linefeed flag
+    lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
+    and #0b01111111         ;Mask off bit 7 auto-linefeed flag
     sta supdev              ;Store as Current I/O device for prompt-suppress
     jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
 
@@ -592,8 +592,8 @@ lab_a226_wedge_input:
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
 
-    lda mem_03ff            ;A = copy of current IEC device number
-    and #0b10000000         ;Mask off bit 7 auto-linefeed flag
+    lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
+    and #0b01111111         ;Mask off bit 7 auto-linefeed flag
     sta supdev              ;Store as Current I/O device for prompt-suppress
 
     lda #',                 ;Add a comma before INPUT buffer so every chunk start with a comma.
@@ -879,8 +879,8 @@ sub_a390_setup:
 
 ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
 sub_a3ad_set_fa_st:
-    lda mem_03ff            ;A = copy of current IEC device number
-    and #0b10000000         ;Mask off bit 7 auto-linefeed flag
+    lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
+    and #0b01111111         ;Mask off bit 7 auto-linefeed flag
     sta fa                  ;Set KERNAL current device number
 
     lda #0x00
@@ -1304,7 +1304,7 @@ lab_a591_more:
     dey                     ;Now Y = 7
     and #0x0f               ;A = Force device number in range 0-15
                             ;    (also clears bit 7 auto-linefeed flag)
-    sta mem_03ff            ;Store as copy of current IEC device number
+    sta cur_iec_dev         ;Store as Current IEC device number for in-progress wedge command
 
     ;A = new device number and is in range 0-15
 
@@ -1910,8 +1910,8 @@ sub_a89a_chk_stop:
 ;Is the KERNAL's current device number (FA) the current IEC device?
 ;Returns Z=1 if so.
 sub_a8a0_is_fa_iec:
-    lda mem_03ff            ;A = copy of current IEC device number
-    and #0b10000000         ;Mask off bit 7 auto-linefeed flag
+    lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
+    and #0b01111111         ;Mask off bit 7 auto-linefeed flag
     cmp fa                  ;Compare to KERNAL current device number
     rts
 

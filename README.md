@@ -12,11 +12,11 @@ This source code is written for the `as6500` assembler, which is part of Alan Ba
 $ make
 ```
 
-It will output a binary file that is bit-for-bit identical to the original `VC-1541-DOS/80` EPROM.  The original EPROM was a 2532 (4K) for the UD11 ($A000) socket.  A listing file will also be produced that shows the assembled bytes alongside the source lines.  See the `Makefile` for the individual commands.  
+It will output a binary file that is bit-for-bit identical to the original `VC-1541-DOS/80` EPROM.  The original EPROM was a 2532 (4K) for the UD11 (`$A000`) socket.  A listing file will also be produced that shows the assembled bytes alongside the source lines.  See the `Makefile` for the individual commands.  
 
 A custom version for $9000 can also be built:
 
-```
+```text
 $ make START=0x9000
 ```
 
@@ -26,33 +26,45 @@ It can be installed in the UD12 socket.  This is useful if you already have a di
 
 - BASIC 4.0.  The code makes many calls that are specific to the BASIC 4.0 ROMs.
 
-- Due to its use of location $87D0, the code requires an 80-column machine to fully function.  $87D0 is in the 80-column screen RAM but is not part of the visible screen.  This location is required for the wedge commands `!print#`, `!get#`, `!input#`, and `!cmd#`.  These will not work correctly on a 40-column machine.  However, the other commands will work.
+- Due to its use of location `$87D0`, the code requires an 80-column machine to fully function.  `$87D0` is in the 80-column screen RAM but is not part of the visible screen.  This location is required for the wedge commands `!print#`, `!get#`, `!input#`, and `!cmd#`.  These will not work correctly on a 40-column machine.  However, the other commands will work.
 
 ## Usage
 
-VC-1541-DOS is implemented as a BASIC wedge and is installed with ``sys 40960``.  
+VC-1541-DOS is implemented as a BASIC wedge.  Install it with `sys 40960` and it will show:
+
+```text
+vc-1541-dos/80
+```
 
 All commands in the VC-1541-DOS wedge are prefixed with a `!`.  The standard CBM BASIC commands can still access IEEE-488 devices but only the `!` commands can access IEC devices.  Although most `!` commands share the same names as their CBM BASIC counterparts, they do not work exactly the same.  
 
 | Command | Description |
 | ------- | ----------- |
 | `!q` | Quit.  Uninstalls the VC-1541-DOS wedge. |
-| `!9@` | Change the current IEC device number to the given number and then perform the another wedge command.  Any command may follow the device number, such as `!9@`, `!9load"filename"`, or `!9open#2,"filename"`.  The command is required (`!9` alone is not valid).  When the wedge is installed, it defaults to device 8.  |
-| `!@` | Read the command channel on the current IEC device and print it. |
-| `!@"s0:filename"` | Send a CBM DOS command to the command channel on the current IEC device.  The command must be quoted. |
-| `!u9` | Reprogram the device number of the current IEC device to the given device number.  This sends an `M-W` command to overwrite locations `$77` and `$78` in the drive, as described in the 1541 User's Guide. The current IEC device number will also be switched to the new device number. |
-| `!catalog` | Read the directory on the current IEC device.  This is equivalent to `!catalog"$"`. |
-| `!catalog"$0:foo*"` | Read the directory on the current IEC device with the given search pattern.  Enter the search pattern the same as you would with `load"$0:foo*",8` in CBM BASIC. |
-| `!load"filename"` | Load a program from the current IEC device into the BASIC program area. |
-| `!load"filename",027a` | Load a program from the current IEC device starting at the given addres.  Only a start address is supported.  It must be four hexadecimal digits. | |
-| `!verify"filename"` | Verify a program on the current IEC device against the BASIC program area. |
-| `!verify"filename",027a` | Verify a program on the current IEC device against the given addres.  Only a start address is supported.  It must be four hexadecimal digits. |
-| `!save"filename"` | Save a BASIC program to the current IEC device. |
+| `!@` | Read the command channel on an IEC device and print it. |
+| `!@"s0:filename"` | Send a CBM DOS command to the command channel on an IEC device.  The command must be quoted. |
+| `!9@` | Use the given IEC device number for the wedge command that follows it.  Another wedge command must follow the number, e.g. `!9@`, `!9load"filename"`, or `!9open#2,"filename"`.  The device number applies only to the given command. |
+| `!u9` | Reprogram the device number of an IEC device to the given device number.  This sends an `M-W` command to overwrite locations `$77` and `$78` in the drive, as described in the 1541 User's Guide. |
+| `!catalog` | Read the directory on an IEC device.  This is equivalent to `!catalog"$"`. |
+| `!catalog"$0:foo*"` | Read the directory on an IEC device with the given search pattern.  Enter the search pattern the same as you would with `load"$0:foo*",8` in CBM BASIC. |
+| `!load"filename"` | Load a program from an IEC device into the BASIC program area. |
+| `!load"filename",027a` | Load a program from an IEC device starting at the given address.  Only a start address is supported.  It must be four hexadecimal digits. | |
+| `!verify"filename"` | Verify a program on an IEC device against the BASIC program area. |
+| `!verify"filename",027a` | Verify a program on an IEC device against the given address.  Only a start address is supported.  It must be four hexadecimal digits. |
+| `!save"filename"` | Save a BASIC program to an IEC device. |
 | `!save"filename",027a,0300` |  Save memory from 0x027A-0x02FF inclusive.  Both the start and the end addresses are required and must be four hexadecimal digits. |
-| `!open#2,"filename,s,r"` | Open a file with the given secondary address on the current IEC device.  The comma and the quotes are required.  The filename can not be empty.  Note that secondary addresses 0 and 1 are special in CBM DOS and are used to load and save programs.  For general purpose file access, use a secondary address between 2 and 14. |
-| `!cmd#2` | Redirect output to the given secondary address on the current IEC device. |
-| `!print#2` | Print a blank line to the given secondary address on the current IEC device.  If `!cmd#` was started, it is automatically ended first. |
-| `!print#2,"test"` | Print an expression to the given secondary address.  Multiple expressions can be combined with a `;` such as in `print#2,"test";x;a$`.  Unlike CBM BASIC, expressions cannot be combined with a comma.  If a trailing `;` is given, do not send the CRLF at the end. |
+| `!open#2,"filename,s,r"` | Open a file with the given secondary address on an IEC device.  The comma and the quotes are required.  The filename can not be empty.  Note that secondary addresses 0 and 1 are special in CBM DOS and are used to load and save programs.  For general purpose file access, use a secondary address between 2 and 14. |
+| `!cmd#2` | Redirect output to the given secondary address on an IEC device. |
+| `!print#2` | Print a blank line to the given secondary address on an IEC device.  If `!cmd#` was started, it is automatically ended first. |
+| `!print#2,"test"` | Print an expression to the given secondary address on an IEC device.  Multiple expressions can be combined with a `;` such as in `print#2,"test";x;a$`.  Unlike CBM BASIC, expressions cannot be combined with a comma.  If a trailing `;` is given, do not send the CRLF at the end. |
+
+### Device Number
+
+VC-1541-DOS uses a default device number stored in location `1022` (`$03fe`).  It is set to `8` when the wedge starts.  If a wedge command is entered without a device number, such as `!load"filename"`, then the default will be used.  You can `poke` a new default.  After `poke1022,9`, the command `!load"filename"` will load from device 9.
+
+A wedge command may be prefixed with a device number to override the default.  For example, `!9load"filename"` will load from device 9.  The prefixed device number will only be used for the command that immediately follows it.
+
+If bit 7 of the device number is set, an automatic CR (`0x0d`) to CRLF (`0x0d`, `0x0a`) translation mode is activated.  The `!print#` and `!cmd#` commands will automatically send an LF after every CR in this mode.
 
 ### Additional Entry Points
 
