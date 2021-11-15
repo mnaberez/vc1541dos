@@ -30,7 +30,7 @@ It can be installed in the UD12 socket.  This is useful if you already have a di
 
 ## Usage
 
-VC-1541-DOS is implemented as a BASIC wedge.  Install it with `sys 40960` and it will show:
+VC-1541-DOS provides a BASIC wedge.  Install it with `sys 40960` and it will show:
 
 ```text
 vc-1541-dos/80
@@ -67,9 +67,21 @@ A wedge command may be prefixed with a device number to override the default.  F
 
 If bit 7 of the device number is set, an automatic CR (`0x0d`) to CRLF (`0x0d`, `0x0a`) translation mode is activated.  The `!print#` and `!cmd#` commands will automatically send an LF after every CR in this mode.
 
+### No Wedge
+
+VC-1541-DOS can also be used without installing the wedge by entering `sys 40963` followed by a command.  Not installing the wedge allows BASIC programs to run at their original speed, since no extra work is done in `CHRGET`.  It may also allow another wedge program to work, as long as it does not use the same areas of RAM as VC-1541-DOS.
+
+This statement is equivalent to `!load"filename"`:
+
+```text
+sys40963load"filename"
+```
+
+Whitespace may optionally follow the `sys` address for readability.  All of the VC-1541-DOS commands may be used this way, regardless of whether the wedge is installed or not.  Due to the way `sys` parsing works, a device number prefix (such as `!9load"filename"` in the wedge) cannot be used.
+
 ### Additional Entry Points
 
-Only the first entry point ($A000 or `sys 40960`) is intended to be used from BASIC.  However, there are 16 additional entry points available for use by assembly language programs.  Please see the source code.
+Only the first two entry points are intended to be used from BASIC.  However, there are 15 additional entry points available for use by assembly language programs.  These provide a "unified" or "universal" API to control both IEC and IEEE-488 devices.  Please see the source code.
 
 ## Credits
 

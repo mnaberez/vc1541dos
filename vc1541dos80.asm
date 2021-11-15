@@ -113,12 +113,12 @@
     .area vc1541dos
 
     ;Entry points at the beginning of the ROM
-    ;Only the first entry point is intended to be called from BASIC.  The other entry
-    ;points provide a "unified" or "universal" API for assembly programmers to control
-    ;both IEC and IEEE-488 devices (the bus is determined by the device number in FA).
+    ;Only the first two entry points are intended to be called from BASIC.  The others
+    ;provide a "unified" or "universal" API for assembly programmers to control both
+    ;IEC and IEEE-488 devices (the bus is determined by the device number in FA).
 
     jmp sub_a036_install        ;a000   Install the wedge with CHRGET patch
-    jmp sub_a09c_wedge_eval     ;a003   Evaluate and perform wedge command at txtptr+0
+    jmp sub_a09c_command        ;a003   Perform a VC-1541-DOS command without wedge
     jmp sub_a377_uni_isour      ;a006   Send last byte to IEC or IEEE
     jmp sub_a382_uni_list1      ;a009   Send a command byte to IEC or IEEE
     jmp sub_a128_uni_openi      ;a00c   Send LISTEN, OPEN and filename to IEC or IEEE
@@ -134,7 +134,7 @@
     jmp sub_a340_uni_lstksa     ;a02a   Send secondary address for TALK or LISTEN to IEC or IEEE
     jmp sub_a361_uni_atnon      ;a02d   Assert ATN on IEC or IEEE
     jmp sub_a36c_uni_scatn      ;a030   Release ATN on IEC or IEEE
-    jmp sub_a119_uni_jmp_lstksa ;a033   Jumps directly to sub_a340_uni_lstksa
+    jmp sub_a119_uni_jmp_lstksa ;a033   Redundant; Jumps to sub_a340_uni_lstksa
 
 sub_a036_install:
     lda #0x4c               ;0x4C = JMP
@@ -145,7 +145,7 @@ sub_a036_install:
     sta chrget+2            ;0070 4C 61 A0 JMP A061
     lda #0x08
     sta def_iec_dev         ;Default device number to use for IEC bus = 8
-    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, SATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
     lda #<banner
     ldy #>banner
     jmp prstr               ;BASIC Print null-terminated string at A=addr low, Y=addr hi
@@ -211,8 +211,21 @@ lab_a092_parse_exc:
     jsr chrget
     lda def_iec_dev         ;A = Default device number for IEC bus (default 8)
     sta cur_iec_dev         ;Save as Current IEC device number for in-progress wedge command
+    ;Fall through to perform command after !
 
-sub_a09c_wedge_eval:
+;Perform a VC-1541-DOS command without wedge
+;
+;This is used by the wedge (immediately above) but is also an entry point
+;in the jump table at the top.  It allows the VC-1541-DOS commands to be
+;used from BASIC without installing the wedge.  For example:
+;
+;  SYS40963@                Print IEC command channel status
+;  SYS40963LOAD"FILENAME"   Load a program from IEC
+;
+;Due to the way SYS parsing works, it's not possible to prefix the command
+;with a temporary device number (such as "!9@" in the wedge).
+;
+sub_a09c_command:
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     pha
     jsr chrget
@@ -302,7 +315,7 @@ lab_a106_devnum:
 
     ;Loop to parse a wedge command after the device number.  A wedge command
     ;must follow the device number or a ?SYNTAX ERROR will result.
-    jmp sub_a09c_wedge_eval
+    jmp sub_a09c_command
 
 ;Wedge command !LOAD
 ;
@@ -328,7 +341,7 @@ lab_a112_wedge_verify:
     sta verchk             ;Store in KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     jmp lab_a6b7_load_or_verify
 
-;Jump to Send secondary address for TALK or LISTEN to IEC or IEEE
+;Redundant; Jumps to Send secondary address for TALK or LISTEN to IEC or IEEE
 sub_a119_uni_jmp_lstksa:
     jmp sub_a340_uni_lstksa;Send secondary address for TALK or LISTEN to IEC or IEEE
 
@@ -341,7 +354,7 @@ sub_a119_uni_jmp_lstksa:
 ;                        are required.  The filename can not be empty.
 ;
 lab_a11c_wedge_open:
-    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, SATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
     jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
@@ -863,7 +876,7 @@ lab_a38c_not_iec:
     jmp list1               ;KERNAL Send a command byte to IEEE
 
 
-;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, SATUS = 0
+;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
 sub_a390_setup:
     lda #0b00111111
     sta via_ddrb
@@ -1282,7 +1295,7 @@ sub_a585_settmo:
 ;  !@"V"  Send an arbitrary string to the command channel.  It must be quoted.
 ;
 lab_a586_wedge_dos:
-    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, SATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     bne lab_a591_more       ;Branch if end of BASIC statement not yet reached
 
@@ -1378,7 +1391,7 @@ lab_a5e5_wedge_save:
     jmp sub_a83c_rd_cmd_ch  ;Read the IEC command channel and print it
 
 sub_a5eb_save:
-    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, SATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     lda #(1 | 0x60)         ;A = secondary address 1 (SAVE) | 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
@@ -1467,7 +1480,7 @@ sub_a65e_clsi:
     ;SA byte high nibble is SECOND
     jsr sub_a3f2_listn      ;Send LISTEN to IEC
     lda sa                  ;A = KERNAL current secondary address
-    and #0b11101111         ;AND 0xEF so high nibble when OR'd become 0xE
+    and #0b11101111         ;AND 0xEF so high nibble when OR'd becomes 0xE
     ora #0b11100000         ;OR  0xE0 = CLOSE
     jsr sub_a49c_secnd      ;Send secondary address for LISTEN to IEC
     jsr sub_a4ef_unlsn      ;Send UNLISTEN to IEC
@@ -1545,7 +1558,7 @@ lab_a6aa_loop:
 ;Wedge commands !LOAD and !VERIFY set VERCHK=0 for LOAD
 ;or VERCHK=0xFF for VERIFY then jump directly here
 lab_a6b7_load_or_verify:
-    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, SATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     cmp #';                 ;Is the byte at txtptr+0 a semicolon?
     bne lab_a6c6_not_semi
@@ -1754,7 +1767,7 @@ sub_a7b6_eval_fname:
 ;  !CATALOG"filename"   List directory with filename
 ;
 lab_a7c7_wedge_catalog:
-    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, SATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     beq lab_a7d5_no_fname   ;No filename, so branch to set the default of "$"
 
