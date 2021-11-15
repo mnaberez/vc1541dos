@@ -1,6 +1,6 @@
 # VC-1541-DOS
 
-[Sven Petersen](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter) discovered an old EPROM marked `VC-1541-DOS/80` in the UD11 option ROM socket of his Commodore CBM 8032.  It turned out to be for a user port adapter that allows PET/CBM computers to use CBM IEC serial peripherals like the 1541 disk drive.  Sven did not have the hardware but he reverse engineered the requirements from the EPROM and designed his [own PCB](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter).  With the EPROM and Sven's PCB, you can use IEC peripherals with the PET.
+[Sven Petersen](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter) discovered an old EPROM marked `VC-1541-DOS/80` in the UD11 option ROM socket of a Commodore CBM 8032.  It turned out to be for a user port adapter that allows PET/CBM computers to use CBM IEC serial peripherals like the 1541 disk drive.  Sven did not have the hardware but he reverse engineered the requirements from the EPROM and designed his [own PCB](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter).  With the EPROM and Sven's PCB, you can use IEC peripherals with the PET.
 
 This is a disassembly of `VC-1541-DOS/80` in the form of commented, relocatable source code.
 
@@ -47,12 +47,13 @@ All commands in the VC-1541-DOS wedge are prefixed with a `!`.  The standard CBM
 | `!u9` | Reprogram the device number of an IEC device to the given device number.  This sends an `M-W` command to overwrite locations `$77` and `$78` in the drive, as described in the 1541 User's Guide. |
 | `!catalog` | Read the directory on an IEC device.  This is equivalent to `!catalog"$"`. |
 | `!catalog"$0:foo*"` | Read the directory on an IEC device with the given search pattern.  Enter the search pattern the same as you would with `load"$0:foo*",8` in CBM BASIC. |
-| `!load"filename"` | Load a program from an IEC device into the BASIC program area. |
-| `!load"filename",027a` | Load a program from an IEC device starting at the given address.  Only a start address is supported.  It must be four hexadecimal digits. | |
-| `!verify"filename"` | Verify a program on an IEC device against the BASIC program area. |
-| `!verify"filename",027a` | Verify a program on an IEC device against the given address.  Only a start address is supported.  It must be four hexadecimal digits. |
+| `!load"filename"` | Load a program from an IEC device starting at the address in the file.  The BASIC pointers `TXTTAB` and `VARTAB` will be updated. |
+| `!load;"filename"` | Load a program from an IEC device starting at the address in the file.  The BASIC pointers will not be changed. |
+| `!load"filename",027a` | Load a program from an IEC device starting at the given address instead of the address in the file.  Only a start address may be given and it must be four hexadecimal digits.  The BASIC pointers will not be changed.  |
+| `!verify"filename"` | Verify a program on an IEC device starting at the address in the file. |
+| `!verify"filename",027a` | Verify a program on an IEC device starting at the given address instead of the address in the file.  Only a start address may be given and it must be four hexadecimal digits. |
 | `!save"filename"` | Save a BASIC program to an IEC device. |
-| `!save"filename",027a,0300` |  Save memory from 0x027A-0x02FF inclusive.  Both the start and the end addresses are required and must be four hexadecimal digits. |
+| `!save"filename",027a,0300` |  Save memory from `$027A`-`$02FF` inclusive.  Both the start and the end addresses are required and must be four hexadecimal digits. |
 | `!open#2,"filename,s,r"` | Open a file with the given secondary address on an IEC device.  The comma and the quotes are required.  The filename can not be empty.  Note that secondary addresses 0 and 1 are special in CBM DOS and are used to load and save programs.  For general purpose file access, use a secondary address between 2 and 14. |
 | `!cmd#2` | Redirect output to the given secondary address on an IEC device. |
 | `!print#2` | Print a blank line to the given secondary address on an IEC device.  If `!cmd#` was started, it is automatically ended first. |

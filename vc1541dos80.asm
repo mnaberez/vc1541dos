@@ -142,7 +142,7 @@ sub_a036_install:
     sta chrget+2            ;0070 4C 61 A0 JMP A061
     lda #0x08
     sta def_iec_dev         ;Default device number to use for IEC bus = 8
-    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, STATUS = 0
     lda #<banner
     ldy #>banner
     jmp prstr               ;BASIC Print null-terminated string at A=addr low, Y=addr hi
@@ -298,7 +298,7 @@ lab_a106_devnum:
     stx cur_iec_dev       ;Save as Current IEC device number for in-progress wedge command
 
     ;Loop to parse a wedge command after the device number.  A wedge command
-    ;must follow the device number of a ?SYNTAX ERROR will result.
+    ;must follow the device number or a ?SYNTAX ERROR will result.
     jmp sub_a09c_wedge_eval
 
 ;Wedge command !LOAD
@@ -337,7 +337,7 @@ sub_a119_jmp_lstksa:
 ;                        are required.  The filename can not be empty.
 ;
 lab_a11c_wedge_open:
-    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, STATUS = 0
     jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
@@ -861,23 +861,23 @@ lab_a38c_not_iec:
     jmp sndcmd              ;KERNAL Send a command byte to IEEE
 
 
-;Set up VIA, set FA = IEC device, STATUS = 0
+;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, STATUS = 0
 sub_a390_setup:
-    lda #0x3f
+    lda #0b00111111
     sta via_ddrb
     lda #0x00
     sta via_timer_2_lo
     sta via_timer_2_hi
     sta via_acr
-    lda #',
-    sta tapwct              ;Used with !LOAD and !VERIFY commands
-    lda #0x17
+    lda #',                 ;A = "," (Update BASIC pointers on !LOAD)
+    sta tapwct              ;Store as TAPWCT (","=update BASIC pointers on !LOAD, ";"=do not)
+    lda #0b00010111
     sta via_porta
     lda #0x80
     sta mem_00fd_r2d2
     ;Fall through
 
-;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
+;Set FA = IEC device for in-progress command, set KERNAL STATUS = 0
 sub_a3ad_set_fa_st:
     lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
     and #0b01111111         ;Mask off bit 7 auto-linefeed flag
@@ -1276,7 +1276,7 @@ sub_a585_settmo:
 ;  !@"V"  Send an arbitrary string to the command channel.  It must be quoted.
 ;
 lab_a586_wedge_dos:
-    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, STATUS = 0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     bne lab_a591_more       ;Branch if end of BASIC statement not yet reached
 
@@ -1372,7 +1372,7 @@ lab_a5e5_wedge_save:
     jmp sub_a83c_rd_cmd_ch  ;Read the IEC command channel and print it
 
 sub_a5eb_save:
-    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, STATUS = 0
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     lda #(1 | 0x60)         ;A = secondary address 1 (SAVE) | 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
@@ -1523,13 +1523,13 @@ lab_a6aa_loop:
 ;Wedge commands !LOAD and !VERIFY set VERCHK=0 for LOAD
 ;or VERCHK=0xFF for VERIFY then jump directly here
 lab_a6b7_load_or_verify:
-    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, STATUS = 0
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     cmp #';                 ;Is the byte at txtptr+0 a semicolon?
     bne lab_a6c6_not_semi
 
     ;Byte at txtptr+0 is a semicolon
-    sta tapwct              ;Store the semicolon
+    sta tapwct              ;Store semicolon = do not update BASIC pointers on !LOAD
     jsr chrget              ;Consume the semicolon
 
 lab_a6c6_not_semi:
@@ -1601,8 +1601,10 @@ lab_a71f_no_tmo:
     jsr sub_a507_acptrs     ;If STATUS=0 then read a byte from IEC, else return a CR (0x0D).
     sta salptr+1            ;Store program's start address high (or the CR) in pointer high
 
+    ;SALPTR now contains the start address in the file
+
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
-    bne lab_a73e_not_comma  ;No start address specified in command, branch to keep salptr
+    bne lab_a73e_not_comma  ;Branch to keep SALPTR if comma in command for start address
 
     ;Found a comma; parse start address from command
     jsr chrget              ;Consume the comma
@@ -1615,15 +1617,19 @@ lab_a71f_no_tmo:
     sta salptr+1
 
     lda #';
-    sta tapwct
+    sta tapwct              ;Store semicolon = Do not update BASIC pointers on !LOAD
 
 lab_a73e_not_comma:
-    lda tapwct
+    lda tapwct              ;A = TAPWCT ("," = update BASIC pointers on !LOAD, ";" = do not)
     cmp #',
-    bne lab_a750_read_loop
+    bne lab_a750_read_loop  ;Branch if BASIC pointers should not be updated
+    ;BASIC pointers should be updated
+
     lda verchk              ;A = KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     bne lab_a750_read_loop  ;Branch if performing VERIFY
-    ;Performing LOAD
+    ;Performing a LOAD
+
+    ;Update BASIC's TXTPTR for LOAD
     lda salptr
     sta txttab
     lda salptr+1
@@ -1689,12 +1695,17 @@ lab_a796_next_byte:
     ;EOF reached
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
     jsr sub_a65e_close      ;Send CLOSE to IEC
-    lda tapwct
+
+    lda tapwct              ;TAPWCT ("," = update BASIC pointers on !LOAD, ";" = do not)
     cmp #',
-    bne lab_a7b5_done
+    bne lab_a7b5_done       ;Branch if BASIC pointers should not be updated
+    ;BASIC pointers should be updated
+
     lda verchk              ;A = KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
     bne lab_a7b5_done       ;Branch if performing VERIFY
-    ;Performing LOAD
+    ;Performing a LOAD
+
+    ;Update BASIC's VARTAB for LOAD
     lda salptr
     sta vartab
     lda salptr+1
@@ -1721,7 +1732,7 @@ sub_a7b6_eval_fname:
 ;  !CATALOG"filename"   List directory with filename
 ;
 lab_a7c7_wedge_catalog:
-    jsr sub_a390_setup      ;Set up VIA, set FA = IEC device, STATUS = 0
+    jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, STATUS = 0
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
     beq lab_a7d5_no_fname   ;No filename, so branch to set the default of "$"
 
@@ -1836,7 +1847,7 @@ mem_a83a_dollr_len = 1
 ;Prints like: "00, OK,00,00"
 sub_a83c_rd_cmd_ch:
     jsr sub_a65e_close      ;Send CLOSE to IEC
-    jsr sub_a3ad_set_fa_st  ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
+    jsr sub_a3ad_set_fa_st  ;Set FA = IEC device for in-progress command, set KERNAL STATUS = 0
     jsr sub_a3ef_talk       ;Send TALK to IEC
     lda #(0x0F | 0x60)      ;A = 0x0F (Command Channel) | 0x60 (SECOND)
     jsr sub_a4bc_tksa       ;Send secondary address for TALK to IEC
@@ -1923,7 +1934,7 @@ sub_a8a8_parse_sa_1:
 
 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, STATUS=0
 sub_a8ad_parse_sa_2:
-    jsr sub_a3ad_set_fa_st  ;Set FA = copy of current IEC device num, set KERNAL STATUS = 0
+    jsr sub_a3ad_set_fa_st  ;Set FA = IEC device for in-progress command, set KERNAL STATUS = 0
     jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
     txa                     ;A = secondary address
     ora #0x60               ;OR secondary address with 0x60 (SECOND)
