@@ -113,25 +113,28 @@
     .area vc1541dos
 
     ;Entry points at the beginning of the ROM
+    ;Only the first entry point is intended to be called from BASIC.  The other entry
+    ;points provide a "unified" or "universal" API for assembly programmers to control
+    ;both IEC and IEEE-488 devices (the bus is determined by the device number in FA).
 
     jmp sub_a036_install        ;a000   Install the wedge with CHRGET patch
     jmp sub_a09c_wedge_eval     ;a003   Evaluate and perform wedge command at txtptr+0
-    jmp sub_a377_isour          ;a006   Send last byte to IEC or IEEE
-    jmp sub_a382_list1          ;a009   Send a command byte to IEC or IEEE
-    jmp sub_a128_openi          ;a00c   Send LISTEN, OPEN and filename to IEC or IEEE
-    jmp sub_a128_clsi           ;a00f   Send CLOSE, UNLISTEN to IEC or IEEE
-    jmp sub_a141_acptrs         ;a012   Read a byte from IEC or IEEE
-    jmp sub_a306_ciout          ;a015   Send a byte to IEC or IEEE
-    jmp sub_a314_listn          ;a018   Send LISTEN to IEC or IEEE
-    jmp sub_a32a_unlsn          ;a01b   Send UNLISTEN to IEC or IEEE
-    jmp sub_a31f_talk           ;a01e   Send TALK to IEC or IEEE
-    jmp sub_a335_untlk          ;a021   Send UNTALK to IEC or IEEE
-    jmp sub_a345_secnd          ;a024   Send secondary address for LISTEN to IEC or IEC
-    jmp sub_a353_tksa           ;a027   Send secondary address for TALK to IEC or IEEE
-    jmp sub_a340_lstksa         ;a02a   Send secondary address for TALK or LISTEN to IEC or IEEE
-    jmp sub_a361_atnon          ;a02d   Assert ATN on IEC or IEEE
-    jmp sub_a36c_scatn          ;a030   Release ATN on IEC or IEEE
-    jmp sub_a119_jmp_lstksa     ;a033   Jumps directly to sub_a340_lstksa
+    jmp sub_a377_uni_isour      ;a006   Send last byte to IEC or IEEE
+    jmp sub_a382_uni_list1      ;a009   Send a command byte to IEC or IEEE
+    jmp sub_a128_uni_openi      ;a00c   Send LISTEN, OPEN and filename to IEC or IEEE
+    jmp sub_a128_uni_clsi       ;a00f   Send CLOSE, UNLISTEN to IEC or IEEE
+    jmp sub_a141_uni_acptrs     ;a012   Read a byte from IEC or IEEE
+    jmp sub_a306_uni_ciout      ;a015   Send a byte to IEC or IEEE
+    jmp sub_a314_uni_listn      ;a018   Send LISTEN to IEC or IEEE
+    jmp sub_a32a_uni_unlsn      ;a01b   Send UNLISTEN to IEC or IEEE
+    jmp sub_a31f_uni_talk       ;a01e   Send TALK to IEC or IEEE
+    jmp sub_a335_uni_untlk      ;a021   Send UNTALK to IEC or IEEE
+    jmp sub_a345_uni_secnd      ;a024   Send secondary address for LISTEN to IEC or IEC
+    jmp sub_a353_uni_tksa       ;a027   Send secondary address for TALK to IEC or IEEE
+    jmp sub_a340_uni_lstksa     ;a02a   Send secondary address for TALK or LISTEN to IEC or IEEE
+    jmp sub_a361_uni_atnon      ;a02d   Assert ATN on IEC or IEEE
+    jmp sub_a36c_uni_scatn      ;a030   Release ATN on IEC or IEEE
+    jmp sub_a119_uni_jmp_lstksa ;a033   Jumps directly to sub_a340_uni_lstksa
 
 sub_a036_install:
     lda #0x4c               ;0x4C = JMP
@@ -326,8 +329,8 @@ lab_a112_wedge_verify:
     jmp lab_a6b7_load_or_verify
 
 ;Jump to Send secondary address for TALK or LISTEN to IEC or IEEE
-sub_a119_jmp_lstksa:
-    jmp sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
+sub_a119_uni_jmp_lstksa:
+    jmp sub_a340_uni_lstksa;Send secondary address for TALK or LISTEN to IEC or IEEE
 
 ;Wedge command !OPEN
 ;
@@ -345,7 +348,7 @@ lab_a11c_wedge_open:
     ;Fall through
 
 ;Send LISTEN, OPEN and filename to IEC or IEEE
-sub_a128_openi:
+sub_a128_uni_openi:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a130_not_iec
     jmp sub_a689_openi      ;Send LISTEN, OPEN and filename to IEC
@@ -367,7 +370,7 @@ lab_a133_wedge_close:
 
 
 ;Send CLOSE, UNLISTEN to IEC or IEEE
-sub_a128_clsi:
+sub_a128_uni_clsi:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a13e_not_iec
     jmp sub_a65e_clsi       ;Send CLOSE, UNLISTEN to IEC
@@ -382,7 +385,7 @@ lab_a13e_not_iec:
 ;      which first checks SATUS and does nothing if it is nonzero.  On IEEE-488, the normal
 ;      ACPTR routine in the KERNAL is called, which does not have this behavior.
 ;
-sub_a141_acptrs:
+sub_a141_uni_acptrs:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a149_not_iec
     jmp sub_a507_acptrs     ;If SATUS=0 then read a byte from IEC, else return a CR (0x0D).
@@ -404,9 +407,9 @@ lab_a14c_wedge_cmd:
     sta prscr
     lda #>lab_a15f_prscr
     sta prscr+1
-    jsr sub_a314_listn      ;Send LISTEN to IEC or IEEE
+    jsr sub_a314_uni_listn  ;Send LISTEN to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
-    jmp sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
+    jmp sub_a340_uni_lstksa ;Send secondary address for TALK or LISTEN to IEC or IEEE
 
 
 ;Routine installed in prscr vector
@@ -419,12 +422,12 @@ lab_a15f_prscr:
     bpl lab_a16f_no_lf      ;Branch if auto-linefeed mode is off
     ;Auto-linefeed mode is on
     ;Send the CR
-    jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
+    jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
     ;Send the LF
     lda #0x0a
 
 lab_a16f_no_lf:
-    jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
+    jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
     jmp dprscr              ;EDITOR Default routine for PRSCR vector
 
 
@@ -459,15 +462,15 @@ lab_a175_wedge_print:
     lda #>dprscr            ;EDITOR Default routine for PRSCR vector
     sta prscr+1
 
-    jsr sub_a32a_unlsn      ;Send UNLISTEN to IEC or IEEE
+    jsr sub_a32a_uni_unlsn  ;Send UNLISTEN to IEC or IEEE
     ;Fall through
 
 ;We're not in !CMD# mode.  Now do the !PRINT#.
 lab_a18c_not_in_cmd:
     jsr sub_a8ad_parse_sa_2 ;Parse integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
-    jsr sub_a314_listn      ;Send LISTEN to IEC or IEEE
+    jsr sub_a314_uni_listn  ;Send LISTEN to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
-    jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
+    jsr sub_a340_uni_lstksa ;Send secondary address for TALK or LISTEN to IEC or IEEE
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     bne lab_a1ce_send_crlf  ;Branch if not a comma to send CRLF, UNLISTEN, and return
 
@@ -497,7 +500,7 @@ lab_a1b3_str_loop:
     beq lab_a1bf_eos        ;Branch if end of string reached
 
     lda [utlptr],y          ;A = byte from string
-    jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
+    jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
     iny                     ;Increment string offset
     bne lab_a1b3_str_loop   ;Branch if potentially more string to send
 
@@ -517,7 +520,7 @@ lab_a1bf_eos:
 ;Byte at txtptr+0 is not a delimiter (semicolon or comma)
 lab_a1ce_send_crlf:
     lda #0x0d               ;A = carriage return
-    jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
+    jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
 
     bit cur_iec_dev         ;Test Current IEC device number for in-progress wedge command
     bpl lab_a1dd_done       ;Branch if auto-linefeed mode is off
@@ -525,10 +528,10 @@ lab_a1ce_send_crlf:
     ;Auto-linefeed mode is on
     ;Send the LF
     lda #0x0a               ;A = newline
-    jsr sub_a306_ciout      ;Send a byte to IEC or IEEE
+    jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
 
 lab_a1dd_done:
-    jmp sub_a32a_unlsn      ;Send UNLISTEN to IEC or IEEE
+    jmp sub_a32a_uni_unlsn  ;Send UNLISTEN to IEC or IEEE
 
 ;Wedge command !GET#
 ;
@@ -539,10 +542,10 @@ lab_a1e0_wedge_get:
     lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
     and #0b01111111         ;Mask off bit 7 auto-linefeed flag
     sta supdev              ;Store as Current I/O device for prompt-suppress
-    jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
+    jsr sub_a31f_uni_talk   ;Send TALK to IEC or IEEE
 
     lda sa                  ;A = KERNAL current secondary address
-    jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
+    jsr sub_a340_uni_lstksa ;Send secondary address for TALK or LISTEN to IEC or IEEE
 
     ldx #<(inpbuf+1)        ;XY = pointer to inpbuf+1
     ldy #>(inpbuf+1)
@@ -559,7 +562,7 @@ sub_a203_read_str:
     ldx #0x00
 
 lab_a205_loop:
-    jsr sub_a141_acptrs     ;Read a byte from IEC or IEEE.  On IEC only, check SATUS first:
+    jsr sub_a141_uni_acptrs ;Read a byte from IEC or IEEE.  On IEC only, check SATUS first:
                             ;  If SATUS=0 then read a byte from IEC, else return a CR (0x0D).
     cmp #0x0d
     beq lab_a21c_cr         ;Branch if a carriage return was received or if an error occurred
@@ -570,7 +573,7 @@ lab_a205_loop:
     bne lab_a205_loop       ;Branch to get another byte if still within buffer size
 
     ;Next byte would exceed INPBUF buffer size
-    jsr sub_a335_untlk      ;Send UNTALK to IEC or IEEE
+    jsr sub_a335_uni_untlk  ;Send UNTALK to IEC or IEEE
     ldx #0xb0               ;X = 0xB0 (?STRING TOO LONG ERROR)
     jmp error               ;BASIC Print error message offset by X in msgs table and return to prompt
 
@@ -586,10 +589,10 @@ lab_a21c_cr:
 lab_a226_wedge_input:
     jsr sub_a8ad_parse_sa_2 ;Parse integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
-    jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
+    jsr sub_a31f_uni_talk   ;Send TALK to IEC or IEEE
 
     lda sa                  ;A = KERNAL current secondary address
-    jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
+    jsr sub_a340_uni_lstksa ;Send secondary address for TALK or LISTEN to IEC or IEEE
 
     lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
     and #0b01111111         ;Mask off bit 7 auto-linefeed flag
@@ -629,7 +632,7 @@ lab_a24b_input_loop:
     bvc lab_a277_input      ;Branch is read operation is INPUT
 
     ;Read operation is GET
-    jsr sub_a141_acptrs     ;Read a byte from IEC or IEEE.  On IEC only, check SATUS first:
+    jsr sub_a141_uni_acptrs ;Read a byte from IEC or IEEE.  On IEC only, check SATUS first:
                             ;  If SATUS=0 then read a byte from IEC, else return a CR (0x0D).
     sta inpbuf              ;Store in input buffer used by MONITOR (0x200-0x250)
     ldx #<(inpbuf-1)        ;XY = pointer to inpbuf-1
@@ -721,7 +724,7 @@ lab_a2d1_null_comma:
 
 lab_a2ec:
     jsr extra               ;BASIC ?EXTRA IGNORED if INPPTR is not at end of buffer
-    jsr sub_a335_untlk      ;Send UNTALK to IEC or IEEE
+    jsr sub_a335_uni_untlk  ;Send UNTALK to IEC or IEEE
     lda #0x00
     sta supdev              ;Store as Current I/O device for prompt-suppress
     rts
@@ -731,7 +734,7 @@ copyright:
 
 
 ;Send a byte to IEC or IEEE
-sub_a306_ciout:
+sub_a306_uni_ciout:
     pha
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a310_not_iec
@@ -744,7 +747,7 @@ lab_a310_not_iec:
 
 
 ;Send LISTEN to IEC or IEEE
-sub_a314_listn:
+sub_a314_uni_listn:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a31c_not_iec
     jmp sub_a3f2_listn      ;Send LISTEN to IEC
@@ -753,7 +756,7 @@ lab_a31c_not_iec:
     jmp listn               ;KERNAL Send LISTEN to IEEE
 
 
-sub_a31f_talk:
+sub_a31f_uni_talk:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a327_not_iec
     jmp sub_a3ef_talk       ;Send TALK to IEC
@@ -763,7 +766,7 @@ lab_a327_not_iec:
 
 
 ;Send UNLISTEN to IEC or IEEE
-sub_a32a_unlsn:
+sub_a32a_uni_unlsn:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a332_not_iec
     jmp sub_a4ef_unlsn      ;Send UNLISTEN to IEC
@@ -773,7 +776,7 @@ lab_a332_not_iec:
 
 
 ;Send UNTALK to IEC or IEEE
-sub_a335_untlk:
+sub_a335_uni_untlk:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a33d_not_iec
     jmp sub_a4e4_untlk      ;Send UNTALK to IEC
@@ -783,14 +786,14 @@ lab_a33d_not_iec:
 
 
 ;Send secondary address for TALK or LISTEN to IEC or IEEE
-sub_a340_lstksa:
+sub_a340_uni_lstksa:
     bit mem_87d0_torl       ;Bit test for TALK or LISTEN state
-    bvs sub_a353_tksa       ;If we sent TALK, branch to send
+    bvs sub_a353_uni_tksa   ;If we sent TALK, branch to send
                             ;  secondary address for TALK to IEC or IEEE
     ;We sent LISTEN so fall through
 
 ;Send secondary address for LISTEN to IEC or IEC
-sub_a345_secnd:
+sub_a345_uni_secnd:
     pha
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a34f_not_iec
@@ -803,7 +806,7 @@ lab_a34f_not_iec:
 
 
 ;Send secondary address for TALK to IEC or IEEE
-sub_a353_tksa:
+sub_a353_uni_tksa:
     pha
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a35d_not_iec
@@ -816,7 +819,7 @@ lab_a35d_not_iec:
 
 
 ;Assert ATN on IEC or IEEE
-sub_a361_atnon:
+sub_a361_uni_atnon:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a369_not_iec
     jmp sub_a4aa_atnon      ;Assert ATN (turns bit 3 of VIA PORT A on)
@@ -826,7 +829,7 @@ lab_a369_not_iec:
 
 
 ;Release ATN on IEC or IEEE
-sub_a36c_scatn:
+sub_a36c_uni_scatn:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a374_not_iec
     jmp sub_a4a1_scatn      ;Release ATN on IEC
@@ -836,7 +839,7 @@ lab_a374_not_iec:
 
 
 ;Send last byte to IEC or IEEE
-sub_a377_isour:
+sub_a377_uni_isour:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a37f_not_iec
     jmp sub_a423_isour      ;Send last byte to IEC
@@ -848,7 +851,7 @@ lab_a37f_not_iec:
 ;Send a command byte to IEC or IEEE
 ;Command byte in A can be 0x20=LISTEN, 0x3F=UNLISTEN, 0x40=TALK, 0x5F=UNTALK
 ;and this routine will OR it with the device address (FA).
-sub_a382_list1:
+sub_a382_uni_list1:
     pha
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a38c_not_iec
@@ -952,7 +955,7 @@ sub_a3f2_listn:
 
 ;Send a command byte to IEC
 ;XXX This first instruction to remember the command is a VC-1541-DOS addition.
-;It exists to support sub_a340_lstksa (also a VC-1541-DOS addition), which is
+;It exists to support sub_a340_uni_lstksa (also a VC-1541-DOS addition), which is
 ;used by !CMD#, !PRINT#, !GET#, and !INPUT#.  Call here instead of the real
 ;LIST1 immediately below.
 sub_a3f4_list1:
