@@ -331,20 +331,18 @@ sub_a119_jmp_lstksa:
 
 ;Wedge command !OPEN
 ;
-;Open a named channel to the current IEC device on the given secondary address.
+;Open a file to the current IEC device on the given secondary address.
+;Sends LISTEN, OPEN, and filename to the device.
 ;
 ;  OPEN#2,"FILENAME"     Open a file on secondary address 2.  The comma and the quotes
 ;                        are required.  The filename can not be empty.
 ;
 lab_a11c_wedge_open:
     jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA = IEC device, SATUS = 0
-    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, SATUS=0
+    jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     ;Fall through
-
-    ;Note: Since sub_a689_openi does nothing if the filename is zero length,
-    ;it's not possible to !OPEN a channel without a filename.
 
 ;Send LISTEN, OPEN and filename to IEC or IEEE
 sub_a128_openi:
@@ -358,12 +356,13 @@ lab_a130_not_iec:
 
 ;Wedge command !CLOSE
 ;
-;Close a channel on the current IEC device on the given secondary address.
+;Close a file on the current IEC device on the given secondary address.
+;Sends CLOSE, UNLISTEN to the device.
 ;
-;  !CLOSE#2   Close on file secondary address 2
+;  !CLOSE#2   Close a file on secondary address 2
 ;
 lab_a133_wedge_close:
-    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, SATUS=0
+    jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
     ;Fall through
 
 
@@ -400,7 +399,7 @@ lab_a149_not_iec:
 ;  !CMD#2   Redirect output to secondary address 2 on device FA.
 ;
 lab_a14c_wedge_cmd:
-    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, SATUS=0
+    jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
     lda #<lab_a15f_prscr
     sta prscr
     lda #>lab_a15f_prscr
@@ -465,7 +464,7 @@ lab_a175_wedge_print:
 
 ;We're not in !CMD# mode.  Now do the !PRINT#.
 lab_a18c_not_in_cmd:
-    jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, SATUS=0
+    jsr sub_a8ad_parse_sa_2 ;Parse integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
     jsr sub_a314_listn      ;Send LISTEN to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a340_lstksa     ;Send secondary address for TALK or LISTEN to IEC or IEEE
@@ -534,7 +533,7 @@ lab_a1dd_done:
 ;Wedge command !GET#
 ;
 lab_a1e0_wedge_get:
-    jsr sub_a8a8_parse_sa_1 ;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, SATUS=0
+    jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
 
     lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
@@ -585,7 +584,7 @@ lab_a21c_cr:
 ;Wedge command !INPUT
 ;
 lab_a226_wedge_input:
-    jsr sub_a8ad_parse_sa_2 ;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, SATUS=0
+    jsr sub_a8ad_parse_sa_2 ;Parse integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a31f_talk       ;Send TALK to IEC or IEEE
 
@@ -791,7 +790,7 @@ sub_a340_lstksa:
     ;We sent LISTEN so fall through
 
 ;Send secondary address for LISTEN to IEC or IEC
-sub_a345_secnd :
+sub_a345_secnd:
     pha
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a34f_not_iec
@@ -1076,7 +1075,7 @@ lab_a495_csberr:
     bcc lab_a4f3_dlabye     ;Branch always to turn ATN off, release all lines
 
 ;Send secondary address for LISTEN to IEC
-sub_a49c_secnd :
+sub_a49c_secnd:
     sta bsour               ;Buffer character
     jsr sub_a419_isoura     ;Send it
 
@@ -1456,11 +1455,16 @@ lab_a65b_done:
 
 ;Send CLOSE, UNLISTEN to IEC
 sub_a65e_clsi:
-    bit sa
-    bmi lab_a671_done
+    bit sa                  ;Test SA byte to check high nibble:
+                            ;  11110000 0xF0 = OPEN
+                            ;  11100000 0xE0 = CLOSE
+                            ;  01100000 0x60 = SECOND
+    bmi lab_a671_done       ;Branch to do nothing if it is OPEN or CLOSE
+
+    ;SA byte high nibble is SECOND
     jsr sub_a3f2_listn      ;Send LISTEN to IEC
     lda sa                  ;A = KERNAL current secondary address
-    and #0b11101111         ;AND 0xEF so high nibble be OR'd to become 0xE
+    and #0b11101111         ;AND 0xEF so high nibble when OR'd become 0xE
     ora #0b11100000         ;OR  0xE0 = CLOSE
     jsr sub_a49c_secnd      ;Send secondary address for LISTEN to IEC
     jsr sub_a4ef_unlsn      ;Send UNLISTEN to IEC
@@ -1496,8 +1500,13 @@ lab_a688_nc:
 ;Send LISTEN, OPEN and filename to IEC
 sub_a689_openi:
     lda sa                  ;A = KERNAL current secondary address
-    bpl lab_a68f
+                            ;High nibble contains:
+                            ;  11110000 0xF0 = OPEN
+                            ;  11100000 0xE0 = CLOSE
+                            ;  01100000 0x60 = SECOND
+    bpl lab_a68f            ;Branch if high nibble of SA is SECOND
 
+;Do nothing if high nibble is OPEN or CLOSE
 lab_a68d_error:
     clc
     rts
@@ -1936,13 +1945,13 @@ sub_a8a0_is_fa_iec:
     cmp fa                  ;Compare to KERNAL current device number
     rts
 
-;Parse int into SA with leading # or ?SYNTAX ERROR, set FA=IEC, SATUS=0
+;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
 sub_a8a8_parse_sa_1:
-    lda #'#
+    lda #'#                 ;A = leading '#' expected before integer
     jsr isaequ              ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
     ;Fall through
 
-;Parse int into SA without leading # or ?SYNTAX ERROR, set FA=IEC, SATUS=0
+;Parse integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
 sub_a8ad_parse_sa_2:
     jsr sub_a3ad_set_fa_st  ;Set FA = IEC device for in-progress command, set SATUS = 0
     jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
