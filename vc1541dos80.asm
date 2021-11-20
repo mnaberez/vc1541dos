@@ -107,6 +107,53 @@
     stop = 0xf92b           ;KERNAL Test STOP key and act if pressed
     chrout = 0xffd2         ;KERNAL Send a char to the current output device
 
+    ;BASIC tokens
+    tok_load = 0x93         ;LOAD
+    tok_save = 0x94         ;SAVE
+    tok_verify = 0x95       ;VERIFY
+    tok_catalog = 0xd7      ;CATALOG
+    tok_open = 0x9f         ;OPEN
+    tok_printn = 0x98       ;PRINT#
+    tok_get = 0xa1          ;GET
+    tok_close = 0xa0        ;CLOSE
+    tok_inputn = 0x84       ;INPUT#
+    tok_cmd = 0x9d          ;CMD
+
+    ;PETSCII characters
+    cr = 0x0d               ;Carriage return
+    lf = 0x0a               ;Linefeed
+    space = 0x20            ;Space
+
+    ;6502 Opcodes
+    opc_bit = 0x2c          ;BIT absaddr
+    opc_bne = 0xd0          ;BNE reladdr
+    opc_incz = 0xe6         ;INC zpaddr
+    opc_jmp = 0x4c          ;JMP absaddr
+
+    ;IEC Protocol
+    iec_talk = 0x40         ;TALK command
+    iec_listen = 0x20       ;LISTEN command
+    iec_second = 0x60       ;SECOND command
+    iec_unlisten = 0x3f     ;UNLISTEN command
+    iec_untalk = 0x5f       ;UNTALK command
+    iec_sa_load = 0         ;LOAD secondary address
+    iec_sa_save = 1         ;SAVE secondary address
+    iec_sa_cmd = 15         ;Command channel secondary address
+
+    ;SATUS flags
+    st_ok = 0               ;OK (all bits off)
+    st_write = 1            ;Direction when timeout occurred = writing
+    st_timeout = 2          ;Timeout error
+    st_verify = 16          ;Verify error
+    st_eof = 64             ;End of file
+    st_notpres = 128        ;Device not present error
+
+    ;I/O Pin Assignments
+    via_pb2_ieee_atn = 4    ;VIA PB2 IEEE-488 ATN
+    via_pb3_iec_atn = 8     ;VIA PB3 IEC ATN
+    via_pb4_iec_clk = 16    ;VIA PB4 IEC CLK
+    via_pb5_iec_data = 32   ;VIA PB5 IEC DATA
+
     ;VC-1541-DOS/80 was originally for 0xA000 (socket UD11) but this source is relocatable.
     ;It also works at 0x9000 (socket UD12) if the origin address is changed.  The origin
     ;address is set in the linker options (aslink command).
@@ -151,14 +198,14 @@
 ;       007f f0 ef    beq chrget           007f f0 ef    beq chrget
 ;
 sub_a036_install:
-    lda #0x4c               ;0x4C = JMP
+    lda #opc_jmp            ;0070 4C 61 A0 JMP A061
     sta chrget
     lda #<sub_a061_wedge
     sta chrget+1
     lda #>sub_a061_wedge
-    sta chrget+2            ;0070 4C 61 A0 JMP A061
+    sta chrget+2
 
-    lda #0x08
+    lda #8
     sta def_iec_dev         ;Default device number to use for IEC bus = 8
 
     jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
@@ -169,7 +216,7 @@ sub_a036_install:
 
 banner:
     .ascii "VC-1541-DOS/80"
-    .byte 0x0d, 0x00
+    .byte cr, 0
 
 ;Wedge
 ;The first instruction of CHRGET is patched to jump here.
@@ -259,67 +306,67 @@ sub_a09c_command:
     jsr chrget
     pla
 
-    cmp #0x93               ;Is byte at txtptr+0 = 0x93 = LOAD token
+    cmp #tok_load
     beq lab_a10f_wedge_load
 
-    cmp #0x94               ;Is byte at txtptr+0 = 0x94 = SAVE token
+    cmp #tok_save
     bne lab_a0af_not_save
     jmp lab_a5e5_wedge_save
 
 lab_a0af_not_save:
-    cmp #0x95               ;Is byte at txtptr+0 = 0x95 = VERIFY token
+    cmp #tok_verify
     beq lab_a112_wedge_verify
 
-    cmp #0xd7               ;Is byte at txtptr+0 = 0xD7 = CATALOG token
+    cmp #tok_catalog
     bne lab_a0ba_not_catalog
     jmp lab_a7c7_wedge_catalog
 
 lab_a0ba_not_catalog:
-    cmp #0x9f               ;Is byte at txtptr+0 = 0x9F = OPEN token
+    cmp #tok_open
     bne lab_a0c1_not_open
     jmp lab_a11c_wedge_open
 
 lab_a0c1_not_open:
-    cmp #0x98               ;Is byte at txtptr+0 = 0x98 = PRINT# token
-    bne lab_a0c8_not_print
-    jmp lab_a175_wedge_print
+    cmp #tok_printn
+    bne lab_a0c8_not_printn
+    jmp lab_a175_wedge_printn
 
-lab_a0c8_not_print:
-    cmp #0xa1               ;Is byte at txtptr+0 = 0xA1 = GET token
+lab_a0c8_not_printn:
+    cmp #tok_get
     bne lab_a0cf_not_get
     jmp lab_a1e0_wedge_get
 
 lab_a0cf_not_get:
-    cmp #0xa0               ;Is byte at txtptr+0 = 0xA0 = CLOSE token
+    cmp #tok_close
     bne lab_a0d6_not_close
     jmp lab_a133_wedge_close
 
 lab_a0d6_not_close:
-    cmp #0x84               ;Is byte at txtptr+0 = 0x84 = INPUT# token
-    bne lab_a0dd_not_input
-    jmp lab_a226_wedge_input
+    cmp #tok_inputn
+    bne lab_a0dd_not_inputn
+    jmp lab_a226_wedge_inputn
 
-lab_a0dd_not_input:
-    cmp #0x9d               ;Is byte at txtptr+0 = 0x9D = CMD token
+lab_a0dd_not_inputn:
+    cmp #tok_cmd
     bne lab_a0e4_not_cmd
     jmp lab_a14c_wedge_cmd
 
 lab_a0e4_not_cmd:
-    cmp #'Q                 ;Is byte at txtptr+0 = Q char?
+    cmp #'Q
     bne lab_a0f5_not_quit
 
     ;Wedge command is !Q (Quit)
     ;Restore normal CHRGET processing; see "Before:" listing in sub_a036_install
-    lda #0xe6               ;0xE6 = INC
+    lda #opc_incz           ;0070 E6 77 INC 77
     sta chrget
     lda #<txtptr
-    sta chrget+1            ;0070 E6 77 INC 77
-    lda #0xD0               ;0xD0 = BNE
-    sta chrget+2            ;0072 D0 xx BNE ...
+    sta chrget+1
+    lda #opc_bne            ;0072 D0 xx BNE ...
+    sta chrget+2
     rts
 
 lab_a0f5_not_quit:
-    cmp #'@                 ;Is byte at txtptr+0 = @ char?
+    cmp #'@
     bne lab_a0fc_not_dos
     jmp lab_a586_wedge_dos
 
@@ -359,7 +406,7 @@ lab_a106_devnum:
 ;
 lab_a10f_wedge_load:
     lda #0                  ;A = 0 (LOAD)
-    .byte 0x2c              ;Skip next 2 bytes
+    .byte opc_bit           ;Skip next 2 bytes
 
 ;Wedge command !VERIFY
 ;
@@ -468,7 +515,7 @@ lab_a14c_wedge_cmd:
 ;Routine installed in prscr vector
 lab_a15f_prscr:
     lda datax               ;A = Current character to print
-    cmp #0x0d               ;Is it a carriage return?
+    cmp #cr                 ;Is it a carriage return?
     bne lab_a16f_no_lf
     ;It's a carriage return
     bit cur_iec_dev         ;Test Current IEC device number for in-progress wedge command
@@ -477,7 +524,7 @@ lab_a15f_prscr:
     ;Send the CR
     jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
     ;Send the LF
-    lda #0x0a
+    lda #lf
 
 lab_a16f_no_lf:
     jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
@@ -502,7 +549,7 @@ lab_a16f_no_lf:
 ;Note: this cannot be the very first command if the wedge
 ;is not installed because it does not call sub_a390_setup.
 ;
-lab_a175_wedge_print:
+lab_a175_wedge_printn:
     ;Are we in !CMD# mode?  If so, the PRSCR vector points to our routine.
     lda prscr
     cmp #<lab_a15f_prscr
@@ -550,7 +597,7 @@ lab_a1ac_str:
     sta fnlen               ;FNLEN = length of string
 
     ;Send the string to IEC
-    ldy #0x00               ;Y = 0 (string offset)
+    ldy #0                  ;Y = 0 (string offset)
 
 lab_a1b3_str_loop:
     cpy fnlen               ;Compare Y to length of string
@@ -577,7 +624,7 @@ lab_a1bf_eos:
 ;Byte at txtptr+0 is not a delimiter (semicolon or comma)
 ;Send CR or CRLF, depending on auto-linfeed mode bit
 lab_a1ce_send_crlf:
-    lda #0x0d               ;A = carriage return
+    lda #cr                 ;A = carriage return
     jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
 
     bit cur_iec_dev         ;Test Current IEC device number for in-progress wedge command
@@ -585,7 +632,7 @@ lab_a1ce_send_crlf:
 
     ;Auto-linefeed mode is on
     ;Send the LF
-    lda #0x0a               ;A = newline
+    lda #lf                 ;A = linefeed
     jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
 
 lab_a1dd_done:
@@ -610,7 +657,7 @@ lab_a1e0_wedge_get:
 
     ldx #<(inpbuf+1)        ;XY = pointer to inpbuf+1
     ldy #>(inpbuf+1)
-    lda #0x00               ;A = NULL (0x00) character
+    lda #0                  ;A = NULL (0x00) character
     sta inpbuf+1            ;Store in INPUT buffer (0x200-0x250)
     lda #0x40               ;A=0x40 (Read operation: GET)
     jmp lab_a245_get_or_input
@@ -620,12 +667,12 @@ lab_a1e0_wedge_get:
 ;The CR (0x0D) is replaced with NULL (0x00).
 ;Jumps to ?STRING TO LONG ERROR if string did not fit
 sub_a203_read_str:
-    ldx #0x00
+    ldx #0
 
 lab_a205_loop:
     jsr sub_a141_uni_acptrs ;Read a byte from IEC or IEEE.  On IEC only, check SATUS first:
                             ;  If SATUS=0 then read a byte from IEC, else return a CR (0x0D).
-    cmp #0x0d
+    cmp #cr
     beq lab_a21c_cr         ;Branch if a carriage return was received or if an error occurred
 
     sta inpbuf,x            ;Store in INPUT buffer (0x200-0x250)
@@ -639,7 +686,7 @@ lab_a205_loop:
     jmp error               ;BASIC Print error message offset by X in msgs table and return to prompt
 
 lab_a21c_cr:
-    lda #0x00               ;A = NULL (0x00) to replace CR in buffer
+    lda #0                  ;A = NULL (0x00) to replace CR in buffer
     sta inpbuf,x            ;Store NULL in INPUT buffer (0x200-0x250)
     ldx #<(inpbuf-1)        ;XY = Pointer to inpbuf-1
     ldy #>(inpbuf-1)
@@ -650,7 +697,7 @@ lab_a21c_cr:
 ;Note: this cannot be the very first command if the wedge
 ;is not installed because it does not call sub_a390_setup.
 ;
-lab_a226_wedge_input:
+lab_a226_wedge_inputn:
     jsr sub_a8ad_parse_sa_2 ;Parse integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
     jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a31f_uni_talk   ;Send TALK to IEC or IEEE
@@ -665,7 +712,7 @@ lab_a226_wedge_input:
     lda #',                 ;Add a comma before INPUT buffer so every chunk start with a comma.
     sta inpbuf-1            ;See "Programming the PET/CBM" page 79 "How INPUT and INPUT# Work"
     jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into inpbuf, set XY = inpbuf-1
-    lda #0x00               ;A=0 (Read operation: 0=INPUT)
+    lda #0                  ;A=0 (Read operation: 0=INPUT)
 
 lab_a245_get_or_input:
     sta readop              ;Store 0 or 0x40 as Read operation: 0=INPUT, 0x40=GET, 0x98=READ
@@ -729,7 +776,7 @@ lab_a285:
     ;Read operation is GET
     inx
     stx txtptr
-    lda #0x00
+    lda #0
     sta schchr
     beq lab_a2a5            ;Branch always
 
@@ -748,7 +795,7 @@ lab_a2a6:
     sta qteflg              ;Scan-between-quotes flag
     lda txtptr
     ldy txtptr+1
-    adc #0x00
+    adc #0
     bcc lab_a2b1_nc
     iny
 
@@ -789,7 +836,7 @@ lab_a2d1_null_comma:
 lab_a2ec:
     jsr extra               ;BASIC ?EXTRA IGNORED if INPPTR is not at end of buffer
     jsr sub_a335_uni_untlk  ;Send UNTALK to IEC or IEEE
-    lda #0x00
+    lda #0
     sta supdev              ;Store as Current I/O device for prompt-suppress
     rts
 
@@ -931,7 +978,7 @@ lab_a38c_not_iec:
 sub_a390_setup:
     lda #0b00111111
     sta via_ddrb
-    lda #0x00
+    lda #0
     sta via_timer_2_lo
     sta via_timer_2_hi
     sta via_acr
@@ -949,7 +996,7 @@ sub_a3ad_set_fa_st:
     and #0b01111111         ;Mask off bit 7 auto-linefeed flag
     sta fa                  ;Set KERNAL current device number
 
-    lda #0x00
+    lda #st_ok
     sta satus               ;KERNAL SATUS = 0 (no error)
     rts
 
@@ -962,28 +1009,28 @@ sub_a3ad_set_fa_st:
 ;Set clock line low (inverted)
 sub_a3b9_clklo:
     lda via_porta
-    ora #0b00010000
+    ora #via_pb4_iec_clk
     sta via_porta
     rts
 
 ;Set clock line high (inverted)
 sub_a3c2_clkhi:
     lda via_porta
-    and #0b11101111
+    and #0xff-via_pb4_iec_clk
     sta via_porta
     rts
 
 ;Set data line high (inverted)
 sub_a3cb_datahi:
     lda via_porta
-    and #0b11011111
+    and #0xff-via_pb5_iec_data
     sta via_porta
     rts
 
 ;Set data line low (inverted)
 sub_a3d4_datalo:
     lda via_porta
-    ora #0b00100000
+    ora #via_pb5_iec_data
     sta via_porta
     rts
 
@@ -1008,13 +1055,13 @@ lab_a3ea_w1ms1:             ;5us loop
 ;Send TALK to IEC
 ;XXX different from C64 KERNAL
 sub_a3ef_talk:
-    lda #0x40               ;A = 0x40 (TALK)
-    .byte 0x2c              ;Skip next 2 bytes
+    lda #iec_talk           ;A = 0x40 (TALK)
+    .byte opc_bit           ;Skip next 2 bytes
 
 ;Send LISTEN to IEC
 ;XXX different from C64 KERNAL
 sub_a3f2_listn:
-    lda #0x20               ;A = 0x20 (LISTEN)
+    lda #iec_listen         ;A = 0x20 (LISTEN)
     ;Fall through
 
 ;Send a command byte to IEC
@@ -1046,7 +1093,7 @@ lab_a408_list2:
     sta bsour               ;IEEE byte buffer for output (FF means no character)
     sei
     jsr sub_a3cb_datahi     ;Set data line high (inverted)
-    cmp #0x3f               ;CLKHI only on UNLISTEN
+    cmp #iec_unlisten       ;CLKHI only on UNLISTEN
     bne lab_a416_list5
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
 
@@ -1063,7 +1110,7 @@ sub_a423_isour:
     sei
     jsr sub_a3cb_datahi     ;Make sure data is released / Set data line high (inverted)
     jsr sub_a3dd_debpia     ;Data should be low / Debounce VIA PA then ASL A
-    bcs lab_a490_nodev      ;Branch to device not present error
+    bcs lab_a490_notpres    ;Branch to device not present error
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
     bit mem_00fd_r2d2       ;EOI flag test
     bpl lab_a43d_noeoi
@@ -1112,7 +1159,7 @@ lab_a460_isrclk:
     sta via_porta
     dec mem_00ff_count
     bne lab_a449_isr01
-    lda #0x00               ;XXX does not match C64 KERNAL
+    lda #0                  ;XXX does not match C64 KERNAL
     sta via_timer_2_lo
     lda #0x04               ;Trigger timer
     sta via_timer_2_hi
@@ -1120,19 +1167,20 @@ lab_a460_isrclk:
 
 lab_a482_isr04:
     lda via_ifr
-    and #0x20               ;XXX does not match C64 KERNAL
+    and #0x20               ;XXX does not match C64 KERNAL, since C64 has CIA and PET has VIA
     bne lab_a493_frmerr     ;Branch to write timeout error
     jsr sub_a3dd_debpia     ;Debounce VIA PA then ASL A
     bcs lab_a482_isr04
     cli
     rts
 
-lab_a490_nodev:
-    lda #0b10000000         ;A = SATUS bit for device not present error
-    .byte 0x2c              ;Skip next 2 bytes
+lab_a490_notpres:
+    lda #st_notpres         ;A = SATUS bit for device not present error
+    .byte opc_bit           ;Skip next 2 bytes
 
 lab_a493_frmerr:
-    lda #0b00000011         ;A = SATUS bits for framing error
+    lda #st_timeout|st_write;A = SATUS bits timeout during write
+                            ;(C64 KERNAL calls this "framing")
 
 ;Commodore Serial Bus Error Entry
 lab_a495_csberr:
@@ -1149,7 +1197,7 @@ sub_a49c_secnd:
 ;Release ATN after LISTEN
 sub_a4a1_scatn:
     lda via_porta
-    and #0xff-0x08
+    and #0xff-via_pb3_iec_atn
     sta via_porta          ;Release ATN
     rts
 
@@ -1158,7 +1206,7 @@ sub_a4a1_scatn:
 ;Turn bit 3 of VIA PORT A on (ATN out)
 sub_a4aa_atnon:
     lda via_porta
-    ora #0x08
+    ora #via_pb3_iec_atn
     sta via_porta
     rts
 
@@ -1166,7 +1214,7 @@ sub_a4aa_atnon:
 ;XXX obviously being IEEE this routine does not exist in C64 KERNAL
 sub_a4b3_ieee_aton:
     lda via_portb
-    and #0xff-0x04
+    and #0xff-via_pb2_ieee_atn
     sta via_portb
     rts
 
@@ -1210,12 +1258,12 @@ sub_a4e4_untlk:
     sei
     jsr sub_a3b9_clklo      ;Set clock line low (inverted)
     jsr sub_a4aa_atnon      ;Assert ATN (turns bit 3 of VIA PORT A on)
-    lda #0x5f               ;A = 0x5F (UNTALK)
-    .byte 0x2c              ;Skip next 2 bytes
+    lda #iec_untalk         ;A = 0x5F (UNTALK)
+    .byte opc_bit           ;Skip next 2 bytes
 
 ;Send UNLISTEN to IEC
 sub_a4ef_unlsn:
-    lda #0x3f               ;A = 0x3F (UNLISTEN)
+    lda #iec_unlisten       ;A = 0x3F (UNLISTEN)
     jsr sub_a3f7_c64_list1  ;Send it
 
 ;Release all lines
@@ -1233,7 +1281,7 @@ lab_a4f9_dlad00:
     tax
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
 
-    lda #0x00               ;XXX different from C64 KERNAL
+    lda #0                  ;XXX different from C64 KERNAL
     sta mem_00a0_c3p0       ;XXX
 
     jmp sub_a3cb_datahi     ;Set data line high (inverted)
@@ -1244,14 +1292,14 @@ sub_a507_acptrs:
     lda satus               ;A = last SATUS
     beq sub_a50e_acptr      ;Branch to do ACPTR if SATUS is OK
     ;SATUS != 0
-    lda #0x0d               ;A = carriage return
+    lda #cr                 ;A = carriage return
     rts
 
 ;Read a byte from IEC
 ;Input a byte from serial bus
 sub_a50e_acptr:
     sei                     ;No IRQ allowed
-    lda #0x00               ;Set EOI/ERROR Flag
+    lda #0                  ;Set EOI/ERROR Flag
     sta mem_00ff_count
     jsr sub_a3c2_clkhi      ;Make sure clock line is released / Set clock line high (inverted)
 
@@ -1260,9 +1308,9 @@ lab_a516_acp00a:
     bpl lab_a516_acp00a
 
 lab_a51b_eoiacp:
-    lda #0x00               ;XXX
-    sta via_timer_2_lo      ;XXX Order of VIA registers is different
-    lda #0x01               ;XXX from C64 KERNAL, but values are the same
+    lda #0                  ;XXX
+    sta via_timer_2_lo      ;XXX Order of VIA registers is different from CIA
+    lda #1                  ;XXX registers in C64 KERNAL, but values are the same
     sta via_timer_2_hi      ;XXX
 
     jsr sub_a3cb_datahi     ;Data line high (Makes timing more like VIC-20) / Set data line high (inverted)
@@ -1270,7 +1318,7 @@ lab_a51b_eoiacp:
 
 lab_a52b_acp00:
     lda via_ifr             ;Check the timer
-    and #0x20               ;XXX Different from C64 KERNAL
+    and #0x20               ;XXX Different from C64 KERNAL, since C64 has CIA and PET has VIA
     bne lab_a539_acp00b     ;Ran out...
     jsr sub_a3dd_debpia     ;Check the clock line / Debounce VIA PA then ASL A
     bmi lab_a52b_acp00      ;No, not yet
@@ -1279,14 +1327,14 @@ lab_a52b_acp00:
 lab_a539_acp00b:
     lda mem_00ff_count      ;Check for error (twice thru timeouts)
     beq lab_a542_acp00c
-    lda #2                  ;A = SATUS bit for timeout error
+    lda #st_timeout         ;A = SATUS bit for timeout error
     jmp lab_a495_csberr     ;ST = 2 read timeout
 
 ;Timer ran out, do an EOI thing
 lab_a542_acp00c:
     jsr sub_a3d4_datalo     ;Set data line low (inverted)
     jsr sub_a3c2_clkhi      ;Delay and then set DATAHI (fix for 40us C64) / Set clock line high (inverted)
-    lda #0b01000000         ;A = SATUS bit for End of File (EOF)
+    lda #st_eof             ;A = SATUS bit for End of File (EOF)
     jsr sub_a580_udst       ;KERNAL SATUS = SATUS | A
     inc mem_00ff_count      ;Go around again for error check on EOI
     bne lab_a51b_eoiacp
@@ -1379,12 +1427,12 @@ lab_a591_more:
     ;A = new device number and is in range 0-15
 
     ;Write TALK byte into M-W command in DOSBUF
-    ora #0x40               ;Turn on bit 6 (TALK)
+    ora #iec_talk           ;Turn on bit 6 (TALK)
     sta [utlptr],y          ;Store A in DOSBUF+7
                             ;  0x0078: IEC bus TALK command to accept (device num | 0x40).
 
     ;Write LISTEN byte into M-W command in DOSBUF
-    eor #0x60               ;Turn off bit 6 (TALK), turn on bit 5 (LISTEN)
+    eor #iec_talk|iec_listen;Turn off bit 6 (TALK), turn on bit 5 (LISTEN)
     dey                     ;Now Y = 6
     sta [utlptr],y          ;Store A in DOSBUF+6
                             ;  0x0077: IEC bus LISTEN command to accept (device num | 0x20).
@@ -1413,13 +1461,13 @@ lab_a5c2_not_u:
 ;      and FNLEN = length of command
 ;
 lab_a5ca_send_dos_cmd:
-    lda #0x00
+    lda #st_ok
     sta satus               ;KERNAL SATUS = 0 (no error)
-    jsr sub_a3f2_listn     ;Send LISTEN to IEC
-    lda #(0x0f | 0x60)      ;A = 0x0F (Command Channel) | 0x60 (SECOND)
+    jsr sub_a3f2_listn      ;Send LISTEN to IEC
+    lda #(iec_sa_cmd | iec_second) ;A = 0x0F (Command Channel) | 0x60 (SECOND)
     jsr sub_a49c_secnd      ;Send secondary address for LISTEN to IEC
 
-    ldy #0x00
+    ldy #0
 
 lab_a5d8_loop:
     lda [utlptr],y          ;A = byte from string to send to command channel
@@ -1444,7 +1492,7 @@ lab_a5e5_wedge_save:
 sub_a5eb_save:
     jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
-    lda #(1 | 0x60)         ;A = secondary address 1 (SAVE) | 0x60 (SECOND)
+    lda #(iec_sa_save | iec_second) ;A = secondary address 1 (SAVE) | 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
     ldy fnlen
     bne lab_a5fc_fnlen_ok   ;Branch if filename is not empty
@@ -1492,7 +1540,7 @@ lab_a633_with_addr:
     lda sa                  ;A = KERNAL secondary address; already set up for SAVE in sub_a5eb_save
     jsr sub_a49c_secnd      ;Send secondary address for LISTEN to IEC
 
-    ldy #0x00               ;Y is always 0 in lab_a647_data_loop below
+    ldy #0                  ;Y is always 0 in lab_a647_data_loop below
 
     ;Send program address
     lda salptr              ;A = low byte of program start address
@@ -1582,7 +1630,7 @@ lab_a68f:
     ldy fnlen
     beq lab_a68d_error      ;Branch to do nothing if filename is empty
     ;Filename is not empty
-    lda #0x00
+    lda #st_ok
     sta satus               ;KERNAL SATUS = 0 (no error)
     jsr sub_a3f2_listn      ;Send LISTEN to IEC
     lda sa                  ;A = KERNAL current secondary address
@@ -1595,7 +1643,7 @@ lab_a68f:
 
 ;device is present
 lab_a6a8_present:
-    ldy #0x00
+    ldy #0
 
 lab_a6aa_loop:
     lda [fnadr],y           ;A = byte from filename
@@ -1644,7 +1692,7 @@ lab_a6e5_not_0x02:
     jsr restor              ;BASIC Perform RESTORE
     ldx #0x16
     stx mem_0013
-    lda #0x00
+    lda #0
     sta mem_003b
     sta subflg              ;Subscript flag; FNX flag
 
@@ -1664,7 +1712,7 @@ sub_a6f6_search_load_verify:
 
 lab_a6ff_fnlen_ok:
     jsr srchng              ;KERNAL Print SEARCHING if in direct mode
-    lda #(0 | 0x60)         ;A = secondary address 0 (LOAD) | 0x60 (SECOND)
+    lda #(iec_sa_load | iec_second) ;A = secondary address 0 (LOAD) | 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
     jsr sub_a689_openi      ;Send LISTEN, OPEN and filename to IEC
     jsr sub_a3ef_talk       ;Send TALK to IEC
@@ -1722,7 +1770,7 @@ lab_a73e_not_comma:
     sta txttab+1
 
 lab_a750_read_loop:
-    lda #0b11111101         ;A = mask off SATUS bit 1 (timeout error)
+    lda #0xff-st_timeout    ;A = mask off SATUS bit 1 (timeout error)
     and satus
     sta satus               ;Store SATUS with timeout error cleared
 
@@ -1747,12 +1795,12 @@ lab_a75e_no_stop:
     beq lab_a794_sta_byte   ;Branch if performing LOAD
 
     ;Performing VERIFY
-    ldy #0x00
+    ldy #0
     cmp [salptr],y          ;Compare byte received with byte to verify
     beq lab_a796_next_byte  ;Branch if bytes are equal
 
     ;VERIFY failed
-    lda #0b00010000         ;A = SATUS bit for VERIFY error
+    lda #st_verify          ;A = SATUS bit for VERIFY error
     jsr sub_a580_udst       ;KERNAL SATUS = SATUS | A
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
     jsr sub_a65e_clsi       ;Send CLOSE, UNLISTEN to IEC
@@ -1838,20 +1886,20 @@ lab_a7d5_no_fname:
 
 ;Perform !CATALOG with the set filename
 lab_a7e1_fname:
-    lda #(0 | 0x60)         ;A = secondary address 0 (LOAD) | 0x60 (SECOND)
+    lda #(iec_sa_load | iec_second) ;A = secondary address 0 (LOAD) | 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
     jsr sub_a689_openi      ;Send LISTEN, OPEN and filename to IEC
     jsr sub_a3ef_talk       ;Send TALK to IEC
     jsr sub_a4bc_tksa       ;Send secondary address for TALK to IEC
 
-    lda #0x00
+    lda #st_ok
     sta satus               ;KERNAL SATUS = 0 (no error)
 
     ;salptr is not used as a pointer below, rather as two temporary locations:
     ;  salptr:   counts down bytes (used with Y register)
     ;  salptr+1: low byte received from IEC
 
-    ldy #0x03               ;Countdown = 3, meaning 6 bytes will be read:
+    ldy #3                  ;Countdown = 3, meaning 6 bytes will be read:
                             ;  Program start address low, high
                             ;  Next BASIC line address low, high
                             ;  Current BASIC line number low, high
@@ -1882,7 +1930,7 @@ lab_a7f4_line_loop:
     jsr linprt              ;BASIC Print 256*A + X in decimal
 
     ;Print space after line number
-    lda #0x20               ;A = SPACE character
+    lda #space              ;A = SPACE character
     jsr chrout              ;KERNAL Send a char to the current output device
 
 ;Read and print BASIC line contents (program filename and type)
@@ -1901,10 +1949,10 @@ lab_a815_fname_loop:
 ;End of current BASIC line reached
 lab_a825_eol:
     ;Print carriage return after line
-    lda #0x0d               ;A = carriage return
+    lda #cr                 ;A = carriage return
     jsr chrout              ;KERNAL Send a char to the current output device
 
-    ldy #0x02               ;Countdown = 2, meaning 4 bytes will be read:
+    ldy #2                  ;Countdown = 2, meaning 4 bytes will be read:
                             ;  Next BASIC line address low, high
                             ;  Current BASIC line number low, high
 
@@ -1935,13 +1983,13 @@ sub_a83c_rd_cmd_ch:
     jsr sub_a65e_clsi       ;Send CLOSE, UNLISTEN to IEC
     jsr sub_a3ad_set_fa_st  ;Set FA = IEC device for in-progress command, set SATUS = 0
     jsr sub_a3ef_talk       ;Send TALK to IEC
-    lda #(0x0F | 0x60)      ;A = 0x0F (Command Channel) | 0x60 (SECOND)
+    lda #(iec_sa_cmd | iec_second);A = 0x0F (Command Channel) | 0x60 (SECOND)
     jsr sub_a4bc_tksa       ;Send secondary address for TALK to IEC
 
 lab_a84a_more:
     jsr sub_a507_acptrs     ;If SATUS=0 then read a byte from IEC, else return a CR (0x0D).
     jsr chrout              ;KERNAL Send a char to the current output device
-    cmp #0x0d               ;Is the character a carriage return?
+    cmp #cr                 ;Is the character a carriage return?
     bne lab_a84a_more       ;  No: loop for another character
     ;Carriage return; end of input
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
@@ -1949,7 +1997,7 @@ lab_a84a_more:
 
 ;Compares byte at txtptr with a comma
 sub_a85a_cmp_comma:
-    ldy #0x00
+    ldy #0
     lda [txtptr],y
     cmp #',
     rts
@@ -1960,7 +2008,7 @@ sub_a85a_cmp_comma:
 sub_a861_parse_addr:
     jsr frmevl              ;BASIC Input and evaluate any expression
     jsr frestr              ;BASIC Discard temporary string
-    cmp #0x04               ;Is it exactly 4 characters?
+    cmp #4                  ;Is it exactly 4 characters?
     bne lab_a88c_syntax     ;  No: jump to ?SYNTAX ERROR
     ldy #0xff               ;Y=FF so it rolls to 0 on first call
     ;high byte, high nibble
@@ -2023,6 +2071,6 @@ sub_a8ad_parse_sa_2:
     jsr sub_a3ad_set_fa_st  ;Set FA = IEC device for in-progress command, set SATUS = 0
     jsr gtbytc+3            ;BASIC Evaluate integer 0-255, return it in X
     txa                     ;A = secondary address
-    ora #0x60               ;OR secondary address with 0x60 (SECOND)
+    ora #iec_second         ;OR secondary address with 0x60 (SECOND)
     sta sa                  ;Set SA (KERNAL current secondary address)
     rts
