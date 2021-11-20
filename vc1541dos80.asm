@@ -211,7 +211,7 @@ lab_a092_parse_exc:
     jsr chrget
     lda def_iec_dev         ;A = Default device number for IEC bus (default 8)
     sta cur_iec_dev         ;Save as Current IEC device number for in-progress wedge command
-    ;Fall through to perform command after !
+    ;Fall through to perform command after "!"
 
 ;Perform a VC-1541-DOS command without wedge
 ;
@@ -319,10 +319,15 @@ lab_a106_devnum:
 
 ;Wedge command !LOAD
 ;
-;  !LOAD"FILENAME"        Load into BASIC program area (TXTTAB)
+;  !LOAD"FILENAME"        Load a program from an IEC device starting at the address in the file.
+;                         The BASIC pointers `TXTTAB` and `VARTAB` will be updated.
 ;
-;  !LOAD"FILENAME",027A   Load at start address specified as 4 hex digits.
-;                         All four digits are required.  An end address is not supported.
+;  !LOAD;"FILENAME"       Load a program from an IEC device starting at the address in the file.
+;                         The BASIC pointers will not be changed.
+;
+;  !LOAD"FILENAME",027A   Load a program from an IEC device starting at the given address instead
+;                         of the address in the file.  Only a start address may be given and it
+;                         must be four hexadecimal digits.  The BASIC pointers will not be changed.
 ;
 lab_a10f_wedge_load:
     lda #0                  ;A = 0 (LOAD)
@@ -330,10 +335,11 @@ lab_a10f_wedge_load:
 
 ;Wedge command !VERIFY
 ;
-;  !VERIFY"FILENAME"        Verify against BASIC program area (TXTTAB)
+;  !VERIFY"FILENAME"        Verify a program on an IEC device starting at the address in the file.
 ;
-;  !VERIFY"FILENAME",027A   Verify against start address specified as 4 hex digits.
-;                           All four digits are required.  An end address is not supported.
+;  !VERIFY"FILENAME",027A   Verify a program on an IEC device starting at the given address instead
+;                           of the address in the file.  Only a start address may be given and it
+;                           must be four hexadecimal digits.
 ;
 lab_a112_wedge_verify:
     lda #0xff              ;A = 0xFF (VERIFY) for VERCHK.  It's normally 0 or 1 but we set
@@ -347,11 +353,11 @@ sub_a119_uni_jmp_lstksa:
 
 ;Wedge command !OPEN
 ;
-;Open a file to the current IEC device on the given secondary address.
+;Open a file on the current IEC device on the given secondary address.
 ;Sends LISTEN, OPEN, and filename to the device.
 ;
-;  OPEN#2,"FILENAME"     Open a file on secondary address 2.  The comma and the quotes
-;                        are required.  The filename can not be empty.
+;  !OPEN#2,"FILENAME"     Open a file on secondary address 2.  The comma and the quotes
+;                         are required.  The filename can not be empty.
 ;
 lab_a11c_wedge_open:
     jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
@@ -376,6 +382,9 @@ lab_a130_not_iec:
 ;Sends CLOSE, UNLISTEN to the device.
 ;
 ;  !CLOSE#2   Close a file on secondary address 2
+;
+;Note: this cannot be the very first command if the wedge
+;is not installed because it does not call sub_a390_setup.
 ;
 lab_a133_wedge_close:
     jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
@@ -414,6 +423,9 @@ lab_a149_not_iec:
 ;
 ;  !CMD#2   Redirect output to secondary address 2 on device FA.
 ;
+;Note: this cannot be the very first command if the wedge
+;is not installed because it does not call sub_a390_setup.
+;
 lab_a14c_wedge_cmd:
     jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
     lda #<lab_a15f_prscr
@@ -446,17 +458,21 @@ lab_a16f_no_lf:
 
 ;Wedge command !PRINT#
 ;
-;Print to an already-open channel on the given secondary address
-;on the current IEC device.  If bit 7 of cur_iec_dev is set, CR will
-;automatically be translated to CRLF.
+;Print to an already-open channel on the given secondary address on the
+;current IEC device.  If `!cmd#` was started, it is automatically ended
+;first.  If bit 7 of cur_iec_dev is set, CR will automatically be
+;translated to CRLF.
 ;
-;  !PRINT#2           Print a blank line to secondary address 2 (sends CRLF).
+;  !PRINT#2           Print a blank line to secondary address 2.
 ;
 ;  !PRINT#2,"TEST"    Print an expression followed by a CRLF to secondary address 2.
 ;                     Multiple expressions can be combined with ";" such as
 ;                     PRINT#2,"TEST";X;A$.  Unlike CBM BASIC, expressions cannot
 ;                     be combined with a comma.  If a trailing ";" is given, do
 ;                     not send the CRLF at the end.
+;
+;Note: this cannot be the very first command if the wedge
+;is not installed because it does not call sub_a390_setup.
 ;
 lab_a175_wedge_print:
     ;Are we in !CMD# mode?  If so, the PRSCR vector points to our routine.
@@ -485,7 +501,7 @@ lab_a18c_not_in_cmd:
     lda sa                  ;A = KERNAL current secondary address
     jsr sub_a340_uni_lstksa ;Send secondary address for TALK or LISTEN to IEC or IEEE
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
-    bne lab_a1ce_send_crlf  ;Branch if not a comma to send CRLF, UNLISTEN, and return
+    bne lab_a1ce_send_crlf  ;Branch if not a comma to send CR or CRLF, UNLISTEN, and return
 
     ;Byte at txtptr+0 is a comma
     jsr chrget              ;Consume the comma
@@ -521,7 +537,7 @@ lab_a1b3_str_loop:
 lab_a1bf_eos:
     jsr sub_a85a_cmp_comma  ;Gets byte at txtptr+0 into A, compares it to a comma
     cmp #';                 ;Is byte at txtptr+0 a semicolon?
-    bne lab_a1ce_send_crlf  ;Branch if not a semicolon to send CRLF, UNLISTEN, and return
+    bne lab_a1ce_send_crlf  ;Branch if not a semicolon to send CR or CRLF, UNLISTEN, and return
 
     ;Got a semicolon, so do not send a CRLF at the end
     jsr chrget              ;Consume semicolon
@@ -531,6 +547,7 @@ lab_a1bf_eos:
     jmp lab_a19f_expr_loop ;Branch to parse BASIC after delimiter (comma or semicolon)
 
 ;Byte at txtptr+0 is not a delimiter (semicolon or comma)
+;Send CR or CRLF, depending on auto-linfeed mode bit
 lab_a1ce_send_crlf:
     lda #0x0d               ;A = carriage return
     jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
@@ -547,6 +564,9 @@ lab_a1dd_done:
     jmp sub_a32a_uni_unlsn  ;Send UNLISTEN to IEC or IEEE
 
 ;Wedge command !GET#
+;
+;Note: this cannot be the very first command if the wedge
+;is not installed because it does not call sub_a390_setup.
 ;
 lab_a1e0_wedge_get:
     jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
@@ -598,6 +618,9 @@ lab_a21c_cr:
     rts
 
 ;Wedge command !INPUT
+;
+;Note: this cannot be the very first command if the wedge
+;is not installed because it does not call sub_a390_setup.
 ;
 lab_a226_wedge_input:
     jsr sub_a8ad_parse_sa_2 ;Parse integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
@@ -1905,7 +1928,7 @@ sub_a85a_cmp_comma:
 
 ;Parse a 4-digit hex address from BASIC text into ml1ptr
 ;Evals expression, calls hexit 4 times, sets ml1ptr
-;Called only during LOAD, SAVE, or VERIFY
+;Called only from !LOAD, !SAVE, or !VERIFY
 sub_a861_parse_addr:
     jsr frmevl              ;BASIC Input and evaluate any expression
     jsr frestr              ;BASIC Discard temporary string

@@ -69,15 +69,15 @@ If bit 7 of the device number is set, an automatic CR (`0x0d`) to CRLF (`0x0d`, 
 
 ### No Wedge
 
-VC-1541-DOS can also be used without installing the wedge by entering `sys 40963` followed by a command.  Not installing the wedge allows BASIC programs to run at their original speed, since no extra work is done in `CHRGET`.  It may also allow another wedge program to work, as long as it does not use the same areas of RAM as VC-1541-DOS.
-
-This statement is equivalent to `!load"filename"`:
+VC-1541-DOS can also be used without installing the wedge by entering `sys 40963` followed by a command.  This statement is equivalent to `!load"filename"`:
 
 ```text
 sys40963load"filename"
 ```
 
-Whitespace may optionally follow the `sys` address for readability.  All of the VC-1541-DOS commands may be used this way, regardless of whether the wedge is installed or not.  Due to the way `sys` parsing works, a device number prefix (such as `!9load"filename"` in the wedge) cannot be used.
+All of the VC-1541-DOS commands may be used this way, regardless of whether the wedge is installed or not.  Due to the way `sys` parsing works, a device number prefix (such as `!9load"filename"` in the wedge) cannot be used.
+
+The commands `!print#`, `!get#`, `!cmd#`, and `!close#` can be used with `sys40963` but they cannot be the very first VC-1541-DOS command executed because they do not initialize the VIA.  This is not a problem when working with disk files, since `!open` is always called first.  However, to read the command channel of a drive into variables without first sending a command, or to send data to a printer, `!open` is not called first.  As a workaround, you can use `sys40960:!q` first, which installs the wedge (initializing the VIA in the process) and then immediately uninstalls it.
 
 ### Additional Entry Points
 
@@ -85,7 +85,7 @@ Only the first two entry points are intended to be used from BASIC.  However, th
 
 ## Credits
 
-The original author is unknown.  The EPROM contains the strings `vc-1541-dos/80` and `(C) g mutz (84)`.
+The original author is unknown.  The EPROM contained the strings `vc-1541-dos/80` and `(C) g mutz (84)`.
 
 [Sven Petersen](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter) discovered the EPROM, disassembled large parts of it, determined the hardware requirements, and designed a circuit and PCB for it.  He was the first to get it working.  Sven published extensive documentation on his findings, along some unanswered questions about the commands.
 
