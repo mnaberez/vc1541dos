@@ -131,11 +131,13 @@
     opc_jmp = 0x4c          ;JMP absaddr
 
     ;IEC Protocol
-    iec_talk = 0x40         ;TALK command
-    iec_listen = 0x20       ;LISTEN command
-    iec_second = 0x60       ;SECOND command
-    iec_unlisten = 0x3f     ;UNLISTEN command
-    iec_untalk = 0x5f       ;UNTALK command
+    iec_talk = 0x40         ;TALK command (hi nib; low nib = primary addr)
+    iec_listen = 0x20       ;LISTEN command (hi nib; low nib = primary addr)
+    iec_untalk = 0x5f       ;UNTALK command (untalks all addresses)
+    iec_unlisten = 0x3f     ;UNLISTEN command (unlistens all addresses)
+    iec_second = 0x60       ;SECOND command (hi nib; low nib = secondary addr)
+    iec_open = 0xf0         ;OPEN command (hi nib; low nib = secondary addr)
+    iec_close = 0xe0        ;CLOSE command (hi nib; low nib = secondary addr)
     iec_sa_load = 0         ;LOAD secondary address
     iec_sa_save = 1         ;SAVE secondary address
     iec_sa_cmd = 15         ;Command channel secondary address
@@ -1021,14 +1023,14 @@ sub_a3b9_clklo:
 ;Set clock line high (inverted)
 sub_a3c2_clkhi:
     lda via_porta
-    and #0xff-via_pa4_iec_clk
+    and #~via_pa4_iec_clk
     sta via_porta
     rts
 
 ;Set data line high (inverted)
 sub_a3cb_datahi:
     lda via_porta
-    and #0xff-via_pa5_iec_data
+    and #~via_pa5_iec_data
     sta via_porta
     rts
 
@@ -1135,7 +1137,7 @@ lab_a43d_noeoi:
     jsr sub_a3b9_clklo      ;Set clock line low (inverted)
 
     ;Set to send data
-    lda #0x08               ;Count 8 bits
+    lda #8                  ;Count 8 bits
     sta mem_00ff_count
 
 lab_a449_isr01:
@@ -1159,8 +1161,8 @@ lab_a460_isrclk:
     nop
     nop
     lda via_porta
-    and #(0xff-0x20)        ;Data high
-    ora #0x10               ;Clock low
+    and #~via_pa5_iec_data  ;Data high
+    ora #via_pa4_iec_clk    ;Clock low
     sta via_porta
     dec mem_00ff_count
     bne lab_a449_isr01
@@ -1202,7 +1204,7 @@ sub_a49c_secnd:
 ;Release ATN after LISTEN
 sub_a4a1_scatn:
     lda via_porta
-    and #0xff-via_pa3_iec_atn
+    and #~via_pa3_iec_atn
     sta via_porta          ;Release ATN
     rts
 
@@ -1219,7 +1221,7 @@ sub_a4aa_atnon:
 ;XXX obviously being IEEE this routine does not exist in C64 KERNAL
 sub_a4b3_ieee_aton:
     lda via_portb
-    and #0xff-via_pb2_ieee_atn
+    and #~via_pb2_ieee_atn
     sta via_portb
     rts
 
@@ -1275,7 +1277,7 @@ sub_a4ef_unlsn:
 lab_a4f3_dlabye:
     jsr sub_a4a1_scatn      ;Always release ATN
 
-;Delay then release clock and data
+;Delay approx 60 us then release clock and data
 sub_a4f6_dladlh:
     txa                     ;Delay approx 60 us
     ldx #10
@@ -1346,7 +1348,7 @@ lab_a542_acp00c:
 
 ;Do the byte transfer
 lab_a551_acp01:
-    lda #0x08               ;Set up counter
+    lda #8                  ;Set up counter
     sta mem_00ff_count
 
 lab_a555_acp03:
@@ -1370,7 +1372,7 @@ lab_a562_acp03a:
     bit satus               ;Check for EOI
     bvc lab_a57b_acp04      ;None...
 
-    jsr sub_a4f6_dladlh     ;Delay then set data high
+    jsr sub_a4f6_dladlh     ;Delay approx 60 then set data high
 
 lab_a57b_acp04:
     lda mem_00fe_bsour1
@@ -1469,7 +1471,7 @@ lab_a5ca_send_dos_cmd:
     lda #st_ok
     sta satus               ;KERNAL SATUS = 0 (no error)
     jsr sub_a3f2_listn      ;Send LISTEN to IEC
-    lda #(iec_sa_cmd | iec_second) ;A = 0x0F (Command Channel) | 0x60 (SECOND)
+    lda #iec_second | iec_sa_cmd ;A = 0x60 (SECOND) | 0x0F (Command Channel)
     jsr sub_a49c_secnd      ;Send secondary address for LISTEN to IEC
 
     ldy #0
@@ -1497,7 +1499,7 @@ lab_a5e5_wedge_save:
 sub_a5eb_save:
     jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
-    lda #(iec_sa_save | iec_second) ;A = secondary address 1 (SAVE) | 0x60 (SECOND)
+    lda #iec_second | iec_sa_save ;A =  0x60 (SECOND) | secondary address 1 (SAVE)
     sta sa                  ;Set SA (KERNAL current secondary address)
     ldy fnlen
     bne lab_a5fc_fnlen_ok   ;Branch if filename is not empty
@@ -1585,7 +1587,7 @@ sub_a65e_clsi:
     jsr sub_a3f2_listn      ;Send LISTEN to IEC
     lda sa                  ;A = KERNAL current secondary address
     and #0b11101111         ;AND 0xEF so high nibble when OR'd becomes 0xE
-    ora #0b11100000         ;OR  0xE0 = CLOSE
+    ora #iec_close          ;OR  0xE0 = CLOSE
     jsr sub_a49c_secnd      ;Send secondary address for LISTEN to IEC
     jsr sub_a4ef_unlsn      ;Send UNLISTEN to IEC
 
@@ -1639,7 +1641,7 @@ lab_a68f:
     sta satus               ;KERNAL SATUS = 0 (no error)
     jsr sub_a3f2_listn      ;Send LISTEN to IEC
     lda sa                  ;A = KERNAL current secondary address
-    ora #0xf0               ;OR it with 0xF0 = OPEN
+    ora #iec_open           ;OR it with 0xF0 = OPEN
     jsr sub_a49c_secnd      ;Send secondary address for LISTEN to IEC
     lda satus               ;A = KERNAL SATUS
     bpl lab_a6a8_present    ;Branch if device not present error bit = 0
@@ -1717,7 +1719,7 @@ sub_a6f6_search_load_verify:
 
 lab_a6ff_fnlen_ok:
     jsr srchng              ;KERNAL Print SEARCHING if in direct mode
-    lda #(iec_sa_load | iec_second) ;A = secondary address 0 (LOAD) | 0x60 (SECOND)
+    lda #iec_second | iec_sa_load ;A = 0x60 (SECOND) | secondary address 0 (LOAD)
     sta sa                  ;Set SA (KERNAL current secondary address)
     jsr sub_a689_openi      ;Send LISTEN, OPEN and filename to IEC
     jsr sub_a3ef_talk       ;Send TALK to IEC
@@ -1775,7 +1777,7 @@ lab_a73e_not_comma:
     sta txttab+1
 
 lab_a750_read_loop:
-    lda #0xff-st_timeout    ;A = mask off SATUS bit 1 (timeout error)
+    lda #~st_timeout        ;A = mask off SATUS bit 1 (timeout error)
     and satus
     sta satus               ;Store SATUS with timeout error cleared
 
@@ -1891,7 +1893,7 @@ lab_a7d5_no_fname:
 
 ;Perform !CATALOG with the set filename
 lab_a7e1_fname:
-    lda #(iec_sa_load | iec_second) ;A = secondary address 0 (LOAD) | 0x60 (SECOND)
+    lda #iec_second | iec_sa_load ;A = 0x60 (SECOND) | secondary address 0 (LOAD)
     sta sa                  ;Set SA (KERNAL current secondary address)
     jsr sub_a689_openi      ;Send LISTEN, OPEN and filename to IEC
     jsr sub_a3ef_talk       ;Send TALK to IEC
@@ -1988,7 +1990,7 @@ sub_a83c_rd_cmd_ch:
     jsr sub_a65e_clsi       ;Send CLOSE, UNLISTEN to IEC
     jsr sub_a3ad_set_fa_st  ;Set FA = IEC device for in-progress command, set SATUS = 0
     jsr sub_a3ef_talk       ;Send TALK to IEC
-    lda #(iec_sa_cmd | iec_second);A = 0x0F (Command Channel) | 0x60 (SECOND)
+    lda #iec_second | iec_sa_cmd ;A = 0x60 (SECOND) | 0x0F (Command Channel)
     jsr sub_a4bc_tksa       ;Send secondary address for TALK to IEC
 
 lab_a84a_more:
