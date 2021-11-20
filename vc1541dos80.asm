@@ -79,7 +79,7 @@
     pia1_portb = 0xe812     ;PIA 1 Port B
     via_portb = 0xe840      ;VIA Port B
     via_porta = 0xe841      ;VIA Port A
-    via_ddrb = 0xe843       ;VIA DDR B
+    via_ddra = 0xe843       ;VIA DDR A
     via_timer_2_lo = 0xe848 ;VIA Timer 2 Low
     via_timer_2_hi = 0xe849 ;VIA Timer 2 High
     via_acr = 0xe84b        ;VIA ACR
@@ -150,9 +150,9 @@
 
     ;I/O Pin Assignments
     via_pb2_ieee_atn = 4    ;VIA PB2 IEEE-488 ATN
-    via_pb3_iec_atn = 8     ;VIA PB3 IEC ATN
-    via_pb4_iec_clk = 16    ;VIA PB4 IEC CLK
-    via_pb5_iec_data = 32   ;VIA PB5 IEC DATA
+    via_pa3_iec_atn = 8     ;VIA PA3 IEC ATN
+    via_pa4_iec_clk = 16    ;VIA PA4 IEC CLK
+    via_pa5_iec_data = 32   ;VIA PA5 IEC DATA
 
     ;VC-1541-DOS/80 was originally for 0xA000 (socket UD11) but this source is relocatable.
     ;It also works at 0x9000 (socket UD12) if the origin address is changed.  The origin
@@ -977,17 +977,22 @@ lab_a38c_not_iec:
 ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
 sub_a390_setup:
     lda #0b00111111
-    sta via_ddrb
+    sta via_ddra
+
     lda #0
     sta via_timer_2_lo
     sta via_timer_2_hi
     sta via_acr
+
     lda #',                 ;A = "," (Update BASIC pointers on !LOAD)
     sta tapwct              ;Store as TAPWCT (","=update BASIC pointers on !LOAD, ";"=do not)
+
     lda #0b00010111
     sta via_porta
+
     lda #0x80
     sta mem_00fd_r2d2
+
     ;Fall through
 
 ;Set FA = IEC device for in-progress command, set SATUS = 0
@@ -1009,28 +1014,28 @@ sub_a3ad_set_fa_st:
 ;Set clock line low (inverted)
 sub_a3b9_clklo:
     lda via_porta
-    ora #via_pb4_iec_clk
+    ora #via_pa4_iec_clk
     sta via_porta
     rts
 
 ;Set clock line high (inverted)
 sub_a3c2_clkhi:
     lda via_porta
-    and #0xff-via_pb4_iec_clk
+    and #0xff-via_pa4_iec_clk
     sta via_porta
     rts
 
 ;Set data line high (inverted)
 sub_a3cb_datahi:
     lda via_porta
-    and #0xff-via_pb5_iec_data
+    and #0xff-via_pa5_iec_data
     sta via_porta
     rts
 
 ;Set data line low (inverted)
 sub_a3d4_datalo:
     lda via_porta
-    ora #via_pb5_iec_data
+    ora #via_pa5_iec_data
     sta via_porta
     rts
 
@@ -1197,7 +1202,7 @@ sub_a49c_secnd:
 ;Release ATN after LISTEN
 sub_a4a1_scatn:
     lda via_porta
-    and #0xff-via_pb3_iec_atn
+    and #0xff-via_pa3_iec_atn
     sta via_porta          ;Release ATN
     rts
 
@@ -1206,7 +1211,7 @@ sub_a4a1_scatn:
 ;Turn bit 3 of VIA PORT A on (ATN out)
 sub_a4aa_atnon:
     lda via_porta
-    ora #via_pb3_iec_atn
+    ora #via_pa3_iec_atn
     sta via_porta
     rts
 
