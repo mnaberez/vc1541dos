@@ -117,7 +117,7 @@
     ;provide a "unified" or "universal" API for assembly programmers to control both
     ;IEC and IEEE-488 devices (the bus is determined by the device number in FA).
 
-    jmp sub_a036_install        ;a000   Install the wedge with CHRGET patch
+    jmp sub_a036_install        ;a000   Install the CHRGET patch to jump to the wedge
     jmp sub_a09c_command        ;a003   Perform a VC-1541-DOS command without wedge
     jmp sub_a377_uni_isour      ;a006   Send last byte to IEC or IEEE
     jmp sub_a382_uni_list1      ;a009   Send a command byte to IEC or IEEE
@@ -136,16 +136,33 @@
     jmp sub_a36c_uni_scatn      ;a030   Release ATN on IEC or IEEE
     jmp sub_a119_uni_jmp_lstksa ;a033   Redundant; Jumps to sub_a340_uni_lstksa
 
+;Install the CHRGET patch to jump to the wedge,
+;then perform setup and print the banner.
+;
+;Before:                            After:
+;
+;chrget 0070 e6 77    inc txtptr    chrget 0070 4c 61 a0 jmp sub_a061_wedge  <--
+;       0072 d0 02    bne chrgot
+;       0074 e6 78    inc txtptr+1         0074 e6 78    inc txtptr+1
+;chrgot 0076 ad 00 04 lda 0x0400    chrgot 0076 ad 00 04 lda 0x0400
+;       0079 c9 ea    cmp #0xea            0079 c9 ea    cmp #0xea
+;       007b b0 0a    bcs 0x0087           007b b0 0a    bcs 0x0087
+;       007d c9 20    cmp #0x20            007d c9 20    cmp #0x20
+;       007f f0 ef    beq chrget           007f f0 ef    beq chrget
+;
 sub_a036_install:
     lda #0x4c               ;0x4C = JMP
     sta chrget
-    lda #<lab_a061_wedge
+    lda #<sub_a061_wedge
     sta chrget+1
-    lda #>lab_a061_wedge
+    lda #>sub_a061_wedge
     sta chrget+2            ;0070 4C 61 A0 JMP A061
+
     lda #0x08
     sta def_iec_dev         ;Default device number to use for IEC bus = 8
+
     jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
+
     lda #<banner
     ldy #>banner
     jmp prstr               ;BASIC Print null-terminated string at A=addr low, Y=addr hi
@@ -154,14 +171,21 @@ banner:
     .ascii "VC-1541-DOS/80"
     .byte 0x0d, 0x00
 
-lab_a061_wedge:
+;Wedge
+;The first instruction of CHRGET is patched to jump here.
+;
+sub_a061_wedge:
+    ;Since we patched the first instruction of CHRGET to jump here,
+    ;we need to increment TXTPTR as CHRGET would have done.
     inc txtptr
     bne lab_a067_nc
     inc txtptr+1
 
 lab_a067_nc:
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
-    php
+                            ;(This is actually getting it for the first time, as
+                            ; the original CHRGET routine falls into CHRGOT.)
+    php                     ;Save process status after CHRGOT
 
     cmp #'!                 ;Is it the wedge character?
     bne lab_a090_not_exc    ;Branch if not
@@ -202,15 +226,19 @@ lab_a08c_ignore_exc:
 
 ;Character is not a "!"
 lab_a090_not_exc:
-    plp
-    rts
+    plp                     ;Restore processor status after CHRGOT
+    rts                     ;Return to the caller of CHRGET
 
 ;Character is a "!" and we are parsing it
 lab_a092_parse_exc:
-    plp
-    jsr chrget
+    plp                     ;Restore processor status after CHRGOT
+                            ;(not needed but we must pull it since we pushed it)
+
+    jsr chrget              ;Get the byte after the "!", which is the VC-1541-DOS command
+
     lda def_iec_dev         ;A = Default device number for IEC bus (default 8)
     sta cur_iec_dev         ;Save as Current IEC device number for in-progress wedge command
+
     ;Fall through to perform command after "!"
 
 ;Perform a VC-1541-DOS command without wedge
@@ -281,7 +309,7 @@ lab_a0e4_not_cmd:
     bne lab_a0f5_not_quit
 
     ;Wedge command is !Q (Quit)
-    ;Restore normal CHRGET processing
+    ;Restore normal CHRGET processing; see "Before:" listing in sub_a036_install
     lda #0xe6               ;0xE6 = INC
     sta chrget
     lda #<txtptr
