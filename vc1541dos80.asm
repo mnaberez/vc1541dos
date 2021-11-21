@@ -4,9 +4,9 @@
     schchr = 0x03           ;Search character
     qteflg = 0x04           ;Scan-between-quotes flag
     valtyp = 0x07           ;Data type of value: 0=numeric, 0xff=string
-    intflag = 0x08          ;Type of number: 0=floating point, 0x80=integer
+    intflg = 0x08           ;Type of number: 0=floating point, 0x80=integer
     subflg = 0x0a           ;Subscript flag; FN flag
-    readop = 0x0b           ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ
+    inpflg = 0x0b           ;Input flag: 0=INPUT, 0x40=GET, 0x98=READ
     supdev = 0x10           ;Current I/O device for prompt-suppress
     temppt = 0x13           ;Next available slot in Descriptor Stack for Temp Strings (1 byte)
     tempst = 0x16           ;Descriptor Stack for Temp Strings (9 bytes: 3 slots of 3 bytes)
@@ -718,7 +718,7 @@ lab_a226_wedge_inputn:
     lda #0                  ;A=0 (Read operation: 0=INPUT)
 
 lab_a245_get_or_input:
-    sta readop              ;Store 0 or 0x40 as Read operation: 0=INPUT, 0x40=GET, 0x98=READ
+    sta inpflg              ;Store 0 or 0x40 as Input flag: 0=INPUT, 0x40=GET, 0x98=READ
     ;Copy pointer returned from sub_a203_read_str into INPPTR
     stx inpptr              ;INPUT, READ, and GET vector to save CHRGET
     sty inpptr+1
@@ -742,7 +742,7 @@ lab_a24b_input_loop:
     bne lab_a285            ;Branch if not end of BASIC statement
 
     ;End of BASIC statement
-    bit readop              ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ (will be 0 or 0x40 only)
+    bit inpflg              ;Input flag: 0=INPUT, 0x40=GET, 0x98=READ (will be 0 or 0x40 only)
     bvc lab_a277_input      ;Branch is read operation is INPUT
 
     ;Read operation is GET
@@ -773,7 +773,7 @@ lab_a285:
     bpl lab_a2bd_numeric    ;Branch if not a string
 
     ;Value is a string
-    bit readop              ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ (will be 0 or 0x40 only)
+    bit inpflg              ;Input flag: 0=INPUT, 0x40=GET, 0x98=READ (will be 0 or 0x40 only)
     bvc lab_a299_input      ;Branch if read operation is INPUT
 
     ;Read operation is GET
@@ -810,7 +810,7 @@ lab_a2b1_nc:
 
 lab_a2bd_numeric:
     jsr fin                 ;BASIC Convert an ASCII string into a numeral in FPAcc #1
-    lda intflag
+    lda intflg
     jsr sub_b94d
 
 lab_a2c5:
