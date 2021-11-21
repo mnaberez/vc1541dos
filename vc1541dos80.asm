@@ -5,7 +5,7 @@
     qteflg = 0x04           ;Scan-between-quotes flag
     valtyp = 0x07           ;Data type of value: 0=numeric, 0xff=string
     intflag = 0x08          ;Type of number: 0=floating point, 0x80=integer
-    subflg = 0x0a           ;Subscript flag; FNX flag
+    subflg = 0x0a           ;Subscript flag; FN flag
     readop = 0x0b           ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ
     supdev = 0x10           ;Current I/O device for prompt-suppress
     temppt = 0x13           ;Next available slot in Descriptor Stack for Temp Strings (1 byte)
@@ -13,7 +13,7 @@
     utlptr = 0x1f           ;Pointer: Utility (various uses)
     txttab = 0x28           ;Pointer: Start of BASIC text
     vartab = 0x2a           ;Pointer: Start of BASIC variables
-    mem_003b = 0x3b
+    oldtxt = 0x3a           ;Pointer: Next BASIC statement for CONTINUE
     inpptr = 0x40           ;Pointer: INPUT, READ, and GET vector to save CHRGET
     forptr = 0x46           ;Pointer: Index Variable for FOR/NEXT
     tmpptr = 0x48           ;Pointer: Various temporary storage uses
@@ -1707,9 +1707,12 @@ lab_a6e5_not_0x02:
                             ;  tempst+6 = 0x1c = third of three slots
                             ;  tempst+9 = 0x1f = past third slot (stack is full)
 
-    lda #0
-    sta mem_003b
-    sta subflg              ;Subscript flag; FNX flag
+    ;Set OLDTXT+1 and SUBFLG to 0, just like the BASIC routine FLOAD does
+    lda #0                  ;A = 0
+    sta oldtxt+1            ;Store in high byte of pointer to next BASIC statement for CONTINUE
+                            ;  (Low byte does not need to be set because the BASIC routine CONT
+                            ;   checks high byte and does ?CAN'T CONTINUE ERROR if it is zero.)
+    sta subflg              ;Store in Subscript flag; FN flag
 
 lab_a6f5_done:
     rts
