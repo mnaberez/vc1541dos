@@ -46,22 +46,22 @@
     cur_iec_dev = 0x3ff     ;Current IEC device number for in-progress wedge command
     mem_87d0_torl = 0x87d0  ;Stores TALK or LISTEN state: 0x40=TALK, 0x20=LISTEN
 
-    rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
     error = 0xb3cf          ;BASIC Print error message offset by X in msgs table and return to prompt
     resbas = 0xb4ad         ;BASIC Reset execution to start, clear, and chain
+    rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
+    restor = 0xb7b7         ;BASIC Perform RESTORE
+    lab_b8c2 = 0xb8c2
+    sub_b94d = 0xb94d
     sub_b965 = 0xb965
     prstr = 0xbb1d          ;BASIC Print null-terminated string at A=addr low, Y=addr hi
     defdev = 0xbb44         ;BASIC Restore default devices
-    restor = 0xb7b7         ;BASIC Perform RESTORE
-    frmevl = 0xbd98         ;BASIC Input and evaluate any expression
-    syntax = 0xbf00         ;BASIC ?SYNTAX ERROR
-    sub_b94d = 0xb94d
     doagin = 0xbb4c         ;BASIC Print error message for GET, INPUT, or READ
+    frmevl = 0xbd98         ;BASIC Input and evaluate any expression
     extra = 0xbcda          ;BASIC ?EXTRA IGNORED if INPPTR is not at end of buffer
     iscoma = 0xbef5         ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     isaequ = 0xbef7         ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
+    syntax = 0xbf00         ;BASIC ?SYNTAX ERROR
     lab_bf24 = 0xbf24
-    lab_b8c2 = 0xb8c2
     ptrget = 0xc12b         ;BASIC Find a variable; sets valtyp and varpnt
     strmem = 0xc5b0         ;BASIC Set up string in memory
     list = 0xc5b5           ;BASIC Perform LIST; full check of parameters, including "-"
@@ -76,16 +76,6 @@
     wroa = 0xd717           ;MONITOR Print word at (ml1ptr) as 4 hex digits
     hexit = 0xd78d          ;MONITOR Evaluate char in A to a hex nibble
     dprscr = 0xe787         ;EDITOR Default routine for PRSCR vector
-
-    pia1_portb = 0xe812     ;PIA 1 Port B
-    via_portb = 0xe840      ;VIA Port B
-    via_porta = 0xe841      ;VIA Port A
-    via_ddra = 0xe843       ;VIA DDR A
-    via_timer_2_lo = 0xe848 ;VIA Timer 2 Low
-    via_timer_2_hi = 0xe849 ;VIA Timer 2 High
-    via_acr = 0xe84b        ;VIA ACR
-    via_ifr = 0xe84d        ;VIA IFR
-
     talk = 0xf0d2           ;KERNAL Send TALK to IEEE
     listn = 0xf0d5          ;KERNAL Send LISTEN to IEEE
     list1 = 0xf0d7          ;KERNAL Send a command byte to IEEE
@@ -96,17 +86,33 @@
     untlk = 0xf1ae          ;KERNAL Send UNTALK to IEEE
     unlsn = 0xf1b9          ;KERNAL Send UNLISTEN to IEEE
     acptr = 0xf1c0          ;KERNAL Read a byte from IEEE
-    lodmsg = 0xf46d         ;KERNAL Print LOADING or VERIFYING if in direct mode
-    notfnd = 0xf5ad         ;KERNAL ?FILE NOT FOUND ERROR
     prmsg = 0xf349          ;KERNAL Print a message from 0xF000 table at offset Y
     is7802 = 0xf351         ;KERNAL Compare TXTPTR+1: LDA 0x78; CMP #2; RTS
     srchng = 0xf449         ;KERNAL Print SEARCHING if in direct mode
+    lodmsg = 0xf46d         ;KERNAL Print LOADING or VERIFYING if in direct mode
     openi = 0xf4a5          ;KERNAL Send LISTEN, OPEN and filename to IEEE
     nprsnt = 0xf4bb         ;KERNAL ?DEVICE NOT PRESENT ERROR
+    notfnd = 0xf5ad         ;KERNAL ?FILE NOT FOUND ERROR
     krnerr = 0xf5b7         ;KERNAL ?<message> ERROR from KERNAL error in Y
     clsi = 0xf72f           ;KERNAL Send CLOSE, UNLISTEN to IEEE
     stop = 0xf92b           ;KERNAL Test STOP key and act if pressed
     chrout = 0xffd2         ;KERNAL Send a char to the current output device
+
+    ;I/O Registers
+    pia1_portb = 0xe812     ;PIA 1 Port B
+    via_portb = 0xe840      ;VIA Port B
+    via_porta = 0xe841      ;VIA Port A
+    via_ddra = 0xe843       ;VIA DDR A
+    via_timer_2_lo = 0xe848 ;VIA Timer 2 Low
+    via_timer_2_hi = 0xe849 ;VIA Timer 2 High
+    via_acr = 0xe84b        ;VIA ACR
+    via_ifr = 0xe84d        ;VIA IFR
+
+    ;I/O Pin Assignments
+    via_pb2_ieee_atn = 4    ;VIA PB2 IEEE-488 ATN
+    via_pa3_iec_atn = 8     ;VIA PA3 IEC ATN
+    via_pa4_iec_clk = 16    ;VIA PA4 IEC CLK
+    via_pa5_iec_data = 32   ;VIA PA5 IEC DATA
 
     ;BASIC tokens
     tok_load = 0x93         ;LOAD
@@ -150,12 +156,6 @@
     st_verify = 16          ;Verify error
     st_eof = 64             ;End of file
     st_notpres = 128        ;Device not present error
-
-    ;I/O Pin Assignments
-    via_pb2_ieee_atn = 4    ;VIA PB2 IEEE-488 ATN
-    via_pa3_iec_atn = 8     ;VIA PA3 IEC ATN
-    via_pa4_iec_clk = 16    ;VIA PA4 IEC CLK
-    via_pa5_iec_data = 32   ;VIA PA5 IEC DATA
 
     ;VC-1541-DOS/80 was originally for 0xA000 (socket UD11) but this source is relocatable.
     ;It also works at 0x9000 (socket UD12) if the origin address is changed.  The origin
