@@ -8,7 +8,8 @@
     subflg = 0x0a           ;Subscript flag; FNX flag
     readop = 0x0b           ;Read operation: 0=INPUT, 0x40=GET, 0x98=READ
     supdev = 0x10           ;Current I/O device for prompt-suppress
-    mem_0013 = 0x13
+    temppt = 0x13           ;Next available slot in Descriptor Stack for Temp Strings (1 byte)
+    tempst = 0x16           ;Descriptor Stack for Temp Strings (9 bytes: 3 slots of 3 bytes)
     utlptr = 0x1f           ;Pointer: Utility (various uses)
     txttab = 0x28           ;Pointer: Start of BASIC text
     vartab = 0x2a           ;Pointer: Start of BASIC variables
@@ -1697,8 +1698,15 @@ lab_a6d1_not_0x02:
 lab_a6e5_not_0x02:
     jsr rsgetc              ;BASIC Reset GETCHR to start of program
     jsr restor              ;BASIC Perform RESTORE
-    ldx #0x16
-    stx mem_0013
+
+    ldx #<tempst            ;X = Next available slot = first of three slots (stack is empty)
+    stx temppt              ;Store as Next available slot in Descriptor Stack for Temp Strings
+                            ;This location may contain:
+                            ;  tempst+0 = 0x16 = first of three slots (stack is empty)
+                            ;  tempst+3 = 0x19 = second of three slots
+                            ;  tempst+6 = 0x1c = third of three slots
+                            ;  tempst+9 = 0x1f = past third slot (stack is full)
+
     lda #0
     sta mem_003b
     sta subflg              ;Subscript flag; FNX flag
