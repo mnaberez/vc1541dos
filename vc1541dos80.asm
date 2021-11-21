@@ -1,8 +1,8 @@
 ;VC-1541-DOS/80
 ;Reverse-engineered source code
 
-    schchr = 0x03           ;Search character
-    qteflg = 0x04           ;Scan-between-quotes flag
+    charac = 0x03           ;Search character
+    endchr = 0x04           ;Scan-between-quotes flag
     valtyp = 0x07           ;Data type of value: 0=numeric, 0xff=string
     intflg = 0x08           ;Type of number: 0=floating point, 0x80=integer
     subflg = 0x0a           ;Subscript flag; FN flag
@@ -785,23 +785,23 @@ lab_a285:
     inx
     stx txtptr
     lda #0
-    sta schchr
+    sta charac
     beq lab_a2a5            ;Branch always
 
 ;Input flag is INPUT
 lab_a299_input:
-    sta schchr
+    sta charac
     cmp #'"
     beq lab_a2a6
     lda #':
-    sta schchr
+    sta charac
     lda #',
 
 lab_a2a5:
     clc
 
 lab_a2a6:
-    sta qteflg              ;Scan-between-quotes flag
+    sta endchr              ;Scan-between-quotes flag
 
     ;Increment TXTPTR
     lda txtptr
