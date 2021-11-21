@@ -94,7 +94,7 @@
     nprsnt = 0xf4bb         ;KERNAL ?DEVICE NOT PRESENT ERROR
     notfnd = 0xf5ad         ;KERNAL ?FILE NOT FOUND ERROR
     krnerr = 0xf5b7         ;KERNAL ?<message> ERROR from KERNAL error in Y
-    clsi = 0xf72f           ;KERNAL Send CLOSE, UNLISTEN to IEEE
+    clsei = 0xf72f          ;KERNAL Send CLOSE, UNLISTEN to IEEE (also known as CLSE1)
     stop = 0xf92b           ;KERNAL Test STOP key and act if pressed
     chrout = 0xffd2         ;KERNAL Send a char to the current output device
 
@@ -172,7 +172,7 @@
     jmp sub_a377_uni_isour      ;a006   Send last byte to IEC or IEEE
     jmp sub_a382_uni_list1      ;a009   Send a command byte to IEC or IEEE
     jmp sub_a128_uni_openi      ;a00c   Send LISTEN, OPEN and filename to IEC or IEEE
-    jmp sub_a128_uni_clsi       ;a00f   Send CLOSE, UNLISTEN to IEC or IEEE
+    jmp sub_a128_uni_clsei      ;a00f   Send CLOSE, UNLISTEN to IEC or IEEE
     jmp sub_a141_uni_acptrs     ;a012   Read a byte from IEC or IEEE
     jmp sub_a306_uni_ciout      ;a015   Send a byte to IEC or IEEE
     jmp sub_a314_uni_listn      ;a018   Send LISTEN to IEC or IEEE
@@ -472,13 +472,18 @@ lab_a133_wedge_close:
 
 
 ;Send CLOSE, UNLISTEN to IEC or IEEE
-sub_a128_uni_clsi:
+sub_a128_uni_clsei:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a13e_not_iec
-    jmp sub_a65e_clsi       ;Send CLOSE, UNLISTEN to IEC
+    jmp sub_a65e_clsei      ;Send CLOSE, UNLISTEN to IEC
 
 lab_a13e_not_iec:
-    jmp clsi                ;Send CLOSE, UNLISTEN to IEEE
+    jmp clsei               ;Send CLOSE, UNLISTEN to IEEE (also known as CLSE1)
+                            ;
+                            ;Note: the CBM sources for the PET KERNALs call this routine CLSE1,
+                            ;but the CBM-II, VIC-20, and C64 KERNAL sources call it CLSEI.  A
+                            ;DOS SUPPORT listing dated 1979 in the 2040 Service Manual also calls
+                            ;it CLSEI.  To be consistent with OPENI, we call it CLSEI here too.
 
 
 ;Read a byte from IEC or IEEE
@@ -1590,7 +1595,7 @@ lab_a65b_done:
     ;Fall through
 
 ;Send CLOSE, UNLISTEN to IEC
-sub_a65e_clsi:
+sub_a65e_clsei:
     bit sa                  ;Test SA byte to check high nibble:
                             ;  11110000 0xF0 = OPEN
                             ;  11100000 0xE0 = CLOSE
@@ -1809,7 +1814,7 @@ lab_a750_read_loop:
     bne lab_a75e_no_stop    ;  No: branch to keep going
 
     ;STOP key pressed
-    jmp sub_a65e_clsi       ;Jump out to Send CLOSE, UNLISTEN to IEC
+    jmp sub_a65e_clsei      ;Jump out to Send CLOSE, UNLISTEN to IEC
 
 ;STOP key not pressed
 lab_a75e_no_stop:
@@ -1834,7 +1839,7 @@ lab_a75e_no_stop:
     lda #st_verify          ;A = SATUS bit for VERIFY error
     jsr sub_a580_udst       ;KERNAL SATUS = SATUS | A
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
-    jsr sub_a65e_clsi       ;Send CLOSE, UNLISTEN to IEC
+    jsr sub_a65e_clsei      ;Send CLOSE, UNLISTEN to IEC
 
     jsr prtcr               ;BASIC Print carriage return
 
@@ -1859,7 +1864,7 @@ lab_a796_next_byte:
 
     ;EOF reached
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
-    jsr sub_a65e_clsi       ;Send CLOSE, UNLISTEN to IEC
+    jsr sub_a65e_clsei      ;Send CLOSE, UNLISTEN to IEC
 
     lda tapwct              ;TAPWCT ("," = update BASIC pointers on !LOAD, ";" = do not)
     cmp #',
@@ -1994,7 +1999,7 @@ lab_a825_eol:
     ;STOP key pressed
 
 lab_a831_error:
-    jmp sub_a65e_clsi       ;Jump out to Send CLOSE, UNLISTEN to IEC
+    jmp sub_a65e_clsei      ;Jump out to Send CLOSE, UNLISTEN to IEC
 
 ;Command to change the drive's device number
 mem_a834_m_w:
@@ -2012,7 +2017,7 @@ mem_a83a_dollr_len = 1
 ;Read the IEC command channel and print it
 ;Prints like: "00, OK,00,00"
 sub_a83c_rd_cmd_ch:
-    jsr sub_a65e_clsi       ;Send CLOSE, UNLISTEN to IEC
+    jsr sub_a65e_clsei      ;Send CLOSE, UNLISTEN to IEC
     jsr sub_a3ad_set_fa_st  ;Set FA = IEC device for in-progress command, set SATUS = 0
     jsr sub_a3ef_talk       ;Send TALK to IEC
     lda #iec_second | iec_sa_cmd ;A = 0x60 (SECOND) | 0x0F (Command Channel)
@@ -2025,7 +2030,7 @@ lab_a84a_more:
     bne lab_a84a_more       ;  No: loop for another character
     ;Carriage return; end of input
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
-    jmp sub_a65e_clsi       ;Send CLOSE, UNLISTEN to IEC
+    jmp sub_a65e_clsei      ;Send CLOSE, UNLISTEN to IEC
 
 ;Compares byte at txtptr with a comma
 sub_a85a_cmp_comma:
