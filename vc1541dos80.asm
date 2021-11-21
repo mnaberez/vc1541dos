@@ -10,7 +10,7 @@
     channl = 0x10           ;Current I/O channel (CMD logical file) number for prompt-suppress
     temppt = 0x13           ;Next available slot in Descriptor Stack for Temp Strings (1 byte)
     tempst = 0x16           ;Descriptor Stack for Temp Strings (9 bytes: 3 slots of 3 bytes)
-    utlptr = 0x1f           ;Pointer: Utility (various uses)
+    index = 0x1f            ;Pointer: Utility (various uses)
     txttab = 0x28           ;Pointer: Start of BASIC text
     vartab = 0x2a           ;Pointer: Start of BASIC variables
     oldtxt = 0x3a           ;Pointer: Next BASIC statement for CONTINUE
@@ -608,7 +608,7 @@ lab_a1b3_str_loop:
     cpy fnlen               ;Compare Y to length of string
     beq lab_a1bf_eos        ;Branch if end of string reached
 
-    lda [utlptr],y          ;A = byte from string
+    lda [index],y           ;A = byte from string
     jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
     iny                     ;Increment string offset
     bne lab_a1b3_str_loop   ;Branch if potentially more string to send
@@ -1434,8 +1434,8 @@ lab_a591_more:
     ;Set up pointer to DOSBUF
     ldx #<dosbuf
     ldy #>dosbuf
-    stx utlptr
-    sty utlptr+1
+    stx index
+    sty index+1
 
     ldy #mem_a834_m_w_len   ;Y = 8
     sty fnlen               ;FNLEN = 8 (length of command to change drive's device number)
@@ -1449,13 +1449,13 @@ lab_a591_more:
 
     ;Write TALK byte into M-W command in DOSBUF
     ora #iec_talk           ;Turn on bit 6 (TALK)
-    sta [utlptr],y          ;Store A in DOSBUF+7
+    sta [index],y           ;Store A in DOSBUF+7
                             ;  0x0078: IEC bus TALK command to accept (device num | 0x40).
 
     ;Write LISTEN byte into M-W command in DOSBUF
     eor #iec_talk|iec_listen;Turn off bit 6 (TALK), turn on bit 5 (LISTEN)
     dey                     ;Now Y = 6
-    sta [utlptr],y          ;Store A in DOSBUF+6
+    sta [index],y           ;Store A in DOSBUF+6
                             ;  0x0077: IEC bus LISTEN command to accept (device num | 0x20).
 
     dey                     ;Now Y = 5
@@ -1463,12 +1463,12 @@ lab_a591_more:
     ;Write the rest of the M_W command into DOSBUF
 lab_a5b8_loop:
     lda mem_a834_m_w,y      ;A = command to change drive's device number
-    sta [utlptr],y          ;Store in DOSBUF
+    sta [index],y           ;Store in DOSBUF
     dey
     bpl lab_a5b8_loop
 
     ;DOSBUF now contains command to change the drive's current device number,
-    ;UTLPTR and FNLEN have been set up for it, so branch to send it
+    ;INDEX and FNLEN have been set up for it, so branch to send it
     bmi lab_a5ca_send_dos_cmd ;Branch always
 
 lab_a5c2_not_u:
@@ -1476,9 +1476,9 @@ lab_a5c2_not_u:
     jsr frestr              ;BASIC Discard temporary string
     sta fnlen
 
-;Send DOS command in buffer [UTLPTR]
+;Send DOS command in buffer [INDEX]
 ;
-;Call with UTLPTR = pointer to buffer with command string
+;Call with INDEX = pointer to buffer with command string
 ;      and FNLEN = length of command
 ;
 lab_a5ca_send_dos_cmd:
@@ -1491,7 +1491,7 @@ lab_a5ca_send_dos_cmd:
     ldy #0
 
 lab_a5d8_loop:
-    lda [utlptr],y          ;A = byte from string to send to command channel
+    lda [index],y           ;A = byte from string to send to command channel
     jsr sub_a4d2_ciout      ;Send a byte to IEC
     iny
     cpy fnlen
@@ -1884,9 +1884,10 @@ sub_a7b6_eval_fname:
     jsr frmevl              ;BASIC Input and evaluate any expression
     jsr frestr              ;BASIC Discard temporary string
     sta fnlen
-    lda utlptr
+
+    lda index
     sta fnadr
-    lda utlptr+1
+    lda index+1
     sta fnadr+1
     rts
 
@@ -2040,27 +2041,27 @@ sub_a861_parse_addr:
     jsr frmevl              ;BASIC Input and evaluate any expression
     jsr frestr              ;BASIC Discard temporary string
     cmp #4                  ;Is it exactly 4 characters?
-    bne lab_a88c_syntax     ;  No: jump to ?SYNTAX ERROR
+    bne lab_a88c_snerr      ;  No: jump to ?SYNTAX ERROR
     ldy #0xff               ;Y=FF so it rolls to 0 on first call
     ;high byte, high nibble
-    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y (0)
+    jsr sub_a894_hexit      ;INCY then hexit value at [index],Y (0)
     jsr sub_a88f_lo_nib_hi  ;Rotate low nib into high nib, low nib = 0
     sta ml1ptr+1            ;Store as pointer high byte
     ;high byte, low nibble
-    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y (1)
+    jsr sub_a894_hexit      ;INCY then hexit value at [index],Y (1)
     ora ml1ptr+1            ;OR it with pointer high byte to add the high nibble
     sta ml1ptr+1            ;Store as pointer high byte
     ;low byte, high nibble
-    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y (2)
+    jsr sub_a894_hexit      ;INCY then hexit value at [index],Y (2)
     jsr sub_a88f_lo_nib_hi  ;Rotate low nib into high nib, low nib = 0
     sta ml1ptr              ;Store as pointer low byte
     ;low byte, low nibble
-    jsr sub_a894_hexit      ;INCY then hexit value at [utlptr],Y (3)
+    jsr sub_a894_hexit      ;INCY then hexit value at [index],Y (3)
     ora ml1ptr              ;OR it pointer low byte to add the high nibble
     sta ml1ptr              ;Store as pointer low byte
     rts
 
-lab_a88c_syntax:
+lab_a88c_snerr:
     jmp snerr               ;?SYNTAX ERROR
 
 ;Rotate low nib into high nib, low nib = 0
@@ -2071,10 +2072,10 @@ sub_a88f_lo_nib_hi:
     asl a
     rts
 
-;INCY then hexit value at [utlptr],Y
+;INCY then hexit value at [index],Y
 sub_a894_hexit:
     iny
-    lda [utlptr],y
+    lda [index],y
     jmp hexit               ;MONITOR Evaluate char in A to a hex nibble
 
 ;STOP key pressed?  Returns Z=1 if so.
