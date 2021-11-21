@@ -15,7 +15,7 @@
     vartab = 0x2a           ;Pointer: Start of BASIC variables
     oldtxt = 0x3a           ;Pointer: Next BASIC statement for CONTINUE
     inpptr = 0x40           ;Pointer: INPUT, READ, and GET vector to save CHRGET
-    forptr = 0x46           ;Pointer: Index Variable for FOR/NEXT
+    forpnt = 0x46           ;Pointer: Index Variable for FOR/NEXT
     tmpptr = 0x48           ;Pointer: Various temporary storage uses
     facexp = 0x5e           ;Floating-Point Accumulator #1: Exponent
     chrget = 0x70           ;Subroutine: Get Next Byte of BASIC Text (patched)
@@ -50,17 +50,17 @@
     resbas = 0xb4ad         ;BASIC Reset execution to start, clear, and chain
     rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
     restor = 0xb7b7         ;BASIC Perform RESTORE
-    lab_b8c2 = 0xb8c2
-    sub_b94d = 0xb94d
-    sub_b965 = 0xb965
+    okgoto = 0xb8c2
+    qintgr = 0xb94d         ;BASIC Store integer or floating point number in [FORPNT]
+    inpcom = 0xb965
     prstr = 0xbb1d          ;BASIC Print null-terminated string at A=addr low, Y=addr hi
     defdev = 0xbb44         ;BASIC Restore default devices
     doagin = 0xbb4c         ;BASIC Print error message for GET, INPUT, or READ
-    frmevl = 0xbd98         ;BASIC Input and evaluate any expression
     extra = 0xbcda          ;BASIC ?EXTRA IGNORED if INPPTR is not at end of buffer
-    iscoma = 0xbef5         ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
-    isaequ = 0xbef7         ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
-    syntax = 0xbf00         ;BASIC ?SYNTAX ERROR
+    frmevl = 0xbd98         ;BASIC Input and evaluate any expression
+    chkcom = 0xbef5         ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
+    synchr = 0xbef7         ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
+    snerr  = 0xbf00         ;BASIC ?SYNTAX ERROR
     lab_bf24 = 0xbf24
     ptrget = 0xc12b         ;BASIC Find a variable; sets valtyp and varpnt
     strmem = 0xc5b0         ;BASIC Set up string in memory
@@ -200,6 +200,8 @@
 ;       007d c9 20    cmp #0x20            007d c9 20    cmp #0x20
 ;       007f f0 ef    beq chrget           007f f0 ef    beq chrget
 ;
+;Note: TXTPTR is CHRGOT+1, meaning the code self-modifies its LDA instruction.
+;
 sub_a036_install:
     lda #opc_jmp            ;0070 4C 61 A0 JMP A061
     sta chrget
@@ -250,7 +252,7 @@ lab_a067_nc:
     cmp #>(lab_bf24-1)
     beq lab_a07d_bf_or_b8   ;Branch if high byte is 0xBF
 
-    cmp #>(lab_b8c2-1)
+    cmp #>(okgoto-1)
     bne lab_a08c_ignore_exc ;Branch if high byte is not 0xB8
 
     ;High byte is 0xB8
@@ -262,7 +264,7 @@ lab_a07d_bf_or_b8:
     cmp #<(lab_bf24-1)
     beq lab_a092_parse_exc  ;Branch to parse if return address is 0xBF24
 
-    cmp #<(lab_b8c2-1)
+    cmp #<(okgoto-1)
     bne lab_a08c_ignore_exc ;Branch to ignore if return address is not 0xB8C2
 
     ;Return address is 0xB8C2
@@ -440,7 +442,7 @@ sub_a119_uni_jmp_lstksa:
 lab_a11c_wedge_open:
     jsr sub_a390_setup      ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
     jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
-    jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
+    jsr chkcom              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a7b6_eval_fname ;Evaluate expression as filename; set up FNLEN and FNADR
     ;Fall through
 
@@ -648,7 +650,7 @@ lab_a1dd_done:
 ;
 lab_a1e0_wedge_get:
     jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
-    jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
+    jsr chkcom              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
 
     lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
     and #0b01111111         ;Mask off bit 7 auto-linefeed flag
@@ -662,7 +664,7 @@ lab_a1e0_wedge_get:
     ldy #>(inpbuf+1)
     lda #0                  ;A = NULL (0x00) character
     sta inpbuf+1            ;Store in INPUT buffer (0x200-0x250)
-    lda #0x40               ;A=0x40 (Read operation: GET)
+    lda #0x40               ;A=0x40 (Input flag: GET)
     jmp lab_a245_get_or_input
 
 ;Read a CR-terminated string from IEC into INPBUF, set XY = INPBUF-1
@@ -702,7 +704,7 @@ lab_a21c_cr:
 ;
 lab_a226_wedge_inputn:
     jsr sub_a8ad_parse_sa_2 ;Parse integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
-    jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
+    jsr chkcom              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a31f_uni_talk   ;Send TALK to IEC or IEEE
 
     lda sa                  ;A = KERNAL current secondary address
@@ -715,7 +717,7 @@ lab_a226_wedge_inputn:
     lda #',                 ;Add a comma before INPUT buffer so every chunk start with a comma.
     sta inpbuf-1            ;See "Programming the PET/CBM" page 79 "How INPUT and INPUT# Work"
     jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into inpbuf, set XY = inpbuf-1
-    lda #0                  ;A=0 (Read operation: 0=INPUT)
+    lda #0                  ;A=0 (Input flag: 0=INPUT)
 
 lab_a245_get_or_input:
     sta inpflg              ;Store 0 or 0x40 as Input flag: 0=INPUT, 0x40=GET, 0x98=READ
@@ -724,15 +726,18 @@ lab_a245_get_or_input:
     sty inpptr+1
 
 lab_a24b_input_loop:
+    ;Set FORPNT to location of variable
     jsr ptrget              ;BASIC Find a variable; sets valtyp and varpnt
-    sta forptr              ;Pointer: Index Variable for FOR/NEXT
-    sty forptr+1
+    sta forpnt              ;Pointer: Index Variable for FOR/NEXT
+    sty forpnt+1
 
+    ;Copy TXTPTR to TMPPTR
     lda txtptr
     ldy txtptr+1
     sta tmpptr              ;Pointer: Various temporary storage uses
     sty tmpptr+1
 
+    ;Copy INPPTR to TXTPTR
     ldx inpptr              ;INPUT, READ, and GET vector to save CHRGET
     ldy inpptr+1
     stx txtptr
@@ -743,9 +748,9 @@ lab_a24b_input_loop:
 
     ;End of BASIC statement
     bit inpflg              ;Input flag: 0=INPUT, 0x40=GET, 0x98=READ (will be 0 or 0x40 only)
-    bvc lab_a277_input      ;Branch is read operation is INPUT
+    bvc lab_a277_input      ;Branch is Input flag is INPUT
 
-    ;Read operation is GET
+    ;Input flag is GET
     jsr sub_a141_uni_acptrs ;Read a byte from IEC or IEEE.  On IEC only, check SATUS first:
                             ;  If SATUS=0 then read a byte from IEC, else return a CR (0x0D).
     sta inpbuf              ;Store in input buffer used by MONITOR (0x200-0x250)
@@ -774,15 +779,16 @@ lab_a285:
 
     ;Value is a string
     bit inpflg              ;Input flag: 0=INPUT, 0x40=GET, 0x98=READ (will be 0 or 0x40 only)
-    bvc lab_a299_input      ;Branch if read operation is INPUT
+    bvc lab_a299_input      ;Branch if Input flag is INPUT
 
-    ;Read operation is GET
+    ;Input flag is GET
     inx
     stx txtptr
     lda #0
     sta schchr
     beq lab_a2a5            ;Branch always
 
+;Input flag is INPUT
 lab_a299_input:
     sta schchr
     cmp #'"
@@ -796,6 +802,8 @@ lab_a2a5:
 
 lab_a2a6:
     sta qteflg              ;Scan-between-quotes flag
+
+    ;Increment TXTPTR
     lda txtptr
     ldy txtptr+1
     adc #0
@@ -805,13 +813,13 @@ lab_a2a6:
 lab_a2b1_nc:
     jsr list+1              ;Call into BASIC Perform LIST mid-instruction
     jsr wtxtptr             ;BASIC Copy FBUFPT (0x006E) to TXTPTR (0x0077)
-    jsr sub_b965
+    jsr inpcom
     jmp lab_a2c5
 
 lab_a2bd_numeric:
     jsr fin                 ;BASIC Convert an ASCII string into a numeral in FPAcc #1
-    lda intflg
-    jsr sub_b94d
+    lda intflg              ;A = type of number (used by QINTGR)
+    jsr qintgr              ;BASIC Store integer or floating point number in [FORPNT]
 
 lab_a2c5:
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
@@ -823,20 +831,25 @@ lab_a2c5:
     jmp doagin              ;BASIC Print error message for GET, INPUT, or READ
 
 lab_a2d1_null_comma:
+    ;Copy TXTPTR to INPPTR
     lda txtptr
     ldy txtptr+1
     sta inpptr              ;INPUT, READ, and GET vector to save CHRGET
     sty inpptr+1
+
+    ;Copy TMPPTR to TXTPTR
     lda tmpptr              ;Pointer: Various temporary storage uses
     ldy tmpptr+1
     sta txtptr
     sty txtptr+1
+
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
-    beq lab_a2ec
-    jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
+    beq lab_a2ec_eos        ;Branch if end of statement reached
+
+    jsr chkcom              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jmp lab_a24b_input_loop
 
-lab_a2ec:
+lab_a2ec_eos:
     jsr extra               ;BASIC ?EXTRA IGNORED if INPPTR is not at end of buffer
     jsr sub_a335_uni_untlk  ;Send UNTALK to IEC or IEEE
     lda #0
@@ -1505,7 +1518,7 @@ sub_a5eb_save:
     ldy fnlen
     bne lab_a5fc_fnlen_ok   ;Branch if filename is not empty
     ;Filename is empty
-    jmp syntax              ;BASIC ?SYNTAX ERROR
+    jmp snerr               ;BASIC ?SYNTAX ERROR
 
 lab_a5fc_fnlen_ok:
     jsr sub_a689_openi      ;Send LISTEN, OPEN and filename to IEC
@@ -1520,7 +1533,7 @@ lab_a5fc_fnlen_ok:
     lda ml1ptr+1
     sta salptr+1
     ;Parse end address for SAVE into ealptr
-    jsr iscoma              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
+    jsr chkcom              ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     jsr sub_a861_parse_addr ;Parse a 4-digit hex address from BASIC text into ml1ptr
     lda ml1ptr
     sta ealptr
@@ -2048,7 +2061,7 @@ sub_a861_parse_addr:
     rts
 
 lab_a88c_syntax:
-    jmp syntax              ;?SYNTAX ERROR
+    jmp snerr               ;?SYNTAX ERROR
 
 ;Rotate low nib into high nib, low nib = 0
 sub_a88f_lo_nib_hi:
@@ -2081,7 +2094,7 @@ sub_a8a0_is_fa_iec:
 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
 sub_a8a8_parse_sa_1:
     lda #'#                 ;A = leading '#' expected before integer
-    jsr isaequ              ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
+    jsr synchr              ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
     ;Fall through
 
 ;Parse integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
