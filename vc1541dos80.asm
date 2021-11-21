@@ -7,7 +7,7 @@
     intflg = 0x08           ;Type of number: 0=floating point, 0x80=integer
     subflg = 0x0a           ;Subscript flag; FN flag
     inpflg = 0x0b           ;Input flag: 0=INPUT, 0x40=GET, 0x98=READ
-    supdev = 0x10           ;Current I/O device for prompt-suppress
+    channl = 0x10           ;Current I/O channel (CMD logical file) number for prompt-suppress
     temppt = 0x13           ;Next available slot in Descriptor Stack for Temp Strings (1 byte)
     tempst = 0x16           ;Descriptor Stack for Temp Strings (9 bytes: 3 slots of 3 bytes)
     utlptr = 0x1f           ;Pointer: Utility (various uses)
@@ -654,7 +654,7 @@ lab_a1e0_wedge_get:
 
     lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
     and #0b01111111         ;Mask off bit 7 auto-linefeed flag
-    sta supdev              ;Store as Current I/O device for prompt-suppress
+    sta channl              ;Store Current I/O channel (CMD logical file) number for prompt-suppress
     jsr sub_a31f_uni_talk   ;Send TALK to IEC or IEEE
 
     lda sa                  ;A = KERNAL current secondary address
@@ -712,7 +712,7 @@ lab_a226_wedge_inputn:
 
     lda cur_iec_dev         ;A = Current IEC device number for in-progress wedge command
     and #0b01111111         ;Mask off bit 7 auto-linefeed flag
-    sta supdev              ;Store as Current I/O device for prompt-suppress
+    sta channl              ;Store Current I/O channel (CMD logical file) number for prompt-suppress
 
     lda #',                 ;Add a comma before INPUT buffer so every chunk start with a comma.
     sta inpbuf-1            ;See "Programming the PET/CBM" page 79 "How INPUT and INPUT# Work"
@@ -759,12 +759,12 @@ lab_a24b_input_loop:
     bne lab_a281            ;Branch always
 
 lab_a277_input:
-    lda supdev              ;A = Current I/O device for prompt-suppress
-    bne lab_a27e
+    lda channl              ;A = Current I/O channel (CMD logical file) number for prompt-suppress
+    bne lab_a27e_not_keyb   ;Branch if it is not 0 (keyboard; the default input device)
 
     jsr defdev              ;BASIC Restore default devices
 
-lab_a27e:
+lab_a27e_not_keyb:
     jsr sub_a203_read_str   ;Read a CR-terminated string from IEC into inpbuf, set XY = inpbuf-1
 
 lab_a281:
@@ -852,8 +852,8 @@ lab_a2d1_null_comma:
 lab_a2ec_eos:
     jsr extra               ;BASIC ?EXTRA IGNORED if INPPTR is not at end of buffer
     jsr sub_a335_uni_untlk  ;Send UNTALK to IEC or IEEE
-    lda #0
-    sta supdev              ;Store as Current I/O device for prompt-suppress
+    lda #0                  ;A = 0 (keyboard; the default input device)
+    sta channl              ;Store Current I/O channel (CMD logical file) number for prompt-suppress
     rts
 
 copyright:
