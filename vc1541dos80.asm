@@ -250,26 +250,30 @@ lab_a067_nc:
     lda stkbot+3,x          ;A = high byte of (return address - 1)
 
     cmp #>(lab_bf24-1)
-    beq lab_a07d_bf_or_b8   ;Branch if high byte is 0xBF
+    beq lab_a07d_high_match ;Branch if high byte of lab_bf24 matches
 
     cmp #>(okgoto-1)
-    bne lab_a08c_ignore_exc ;Branch if high byte is not 0xB8
+    bne lab_a08c_ignore_exc ;Branch if high byte does not match OKGOTO
 
-    ;High byte is 0xB8
-
-;High byte of return address is 0xBF or 0xB8
-lab_a07d_bf_or_b8:
+;High byte of return address matches lab_bf24 or OKGOTO
+lab_a07d_high_match:
     lda stkbot+2,x          ;A = low byte of (return address - 1)
 
     cmp #<(lab_bf24-1)
-    beq lab_a092_parse_exc  ;Branch to parse if return address is 0xBF24
+    beq lab_a092_parse_exc  ;Branch to parse if return address is lab_bf24
 
     cmp #<(okgoto-1)
-    bne lab_a08c_ignore_exc ;Branch to ignore if return address is not 0xB8C2
+    bne lab_a08c_ignore_exc ;Branch to ignore if return address is not OKGOTO
 
-    ;Return address is 0xB8C2
+    ;Return address is OKGOTO.  This means we were in the IF routine, which called
+    ;SYNCHR to test for the THEN token.  SYNCHR found THEN, so it called CHRGET
+    ;(that's us) to get the next char after it.  If the expression in the IF
+    ;statement evaluated to true, FACEXP has been set to non-zero.
+
     lda facexp
-    bne lab_a092_parse_exc
+    bne lab_a092_parse_exc  ;Branch to parse if the expression evaluated to true
+
+    ;The expression in the IF statement evaluated to false, so ignore this "!".
 
 ;Character is a "!" but we are not parsing it
 lab_a08c_ignore_exc:
