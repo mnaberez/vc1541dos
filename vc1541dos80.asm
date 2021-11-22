@@ -50,7 +50,7 @@
     resbas = 0xb4ad         ;BASIC Reset execution to start, clear, and chain
     rsgetc = 0xb622         ;BASIC Reset GETCHR to start of program
     restor = 0xb7b7         ;BASIC Perform RESTORE
-    okgoto = 0xb8c2
+    okgoto = 0xb8c2         ;BASIC Perform GOTO or THEN if expression in IF evaluated to true
     qintgr = 0xb94d         ;BASIC Store integer or floating point number in [FORPNT]
     inpcom = 0xb965
     prstr = 0xbb1d          ;BASIC Print null-terminated string at A=addr low, Y=addr hi
@@ -61,7 +61,7 @@
     chkcom = 0xbef5         ;BASIC ?SYNTAX ERROR if CHRGET does not equal a comma
     synchr = 0xbef7         ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
     snerr  = 0xbf00         ;BASIC ?SYNTAX ERROR
-    lab_bf24 = 0xbf24
+    patchh = 0xbf21         ;BASIC Get the first char of a new statement
     ptrget = 0xc12b         ;BASIC Find a variable; sets valtyp and varpnt
     strmem = 0xc5b0         ;BASIC Set up string in memory
     list = 0xc5b5           ;BASIC Perform LIST; full check of parameters, including "-"
@@ -242,38 +242,47 @@ lab_a067_nc:
     cmp #'!                 ;Is it the wedge character?
     bne lab_a090_not_exc    ;Branch if not
 
-    ;Got the wedge character; now look at the return address
+    ;Got the "!" wedge character; now look at the return address
     ;on the stack to see if we should parse it
 
     stx tapend              ;Save X before we use it
     tsx
     lda stkbot+3,x          ;A = high byte of (return address - 1)
 
-    cmp #>(lab_bf24-1)
-    beq lab_a07d_high_match ;Branch if high byte of lab_bf24 matches
+    cmp #>(patchh+3-1)
+    beq lab_a07d_high_match ;Branch if high byte of PATCHH+3 matches
 
     cmp #>(okgoto-1)
     bne lab_a08c_ignore_exc ;Branch if high byte does not match OKGOTO
 
-;High byte of return address matches lab_bf24 or OKGOTO
+;High byte of return address matches PATCHH+3 or OKGOTO
 lab_a07d_high_match:
     lda stkbot+2,x          ;A = low byte of (return address - 1)
 
-    cmp #<(lab_bf24-1)
-    beq lab_a092_parse_exc  ;Branch to parse if return address is lab_bf24
+    ;Check if we are fetching the first char of a new statement.  If the return
+    ;address is PATCHH+3, then GONE did JSR PATCHH, which just did JSR CHRGET
+    ;(that's us) to get the char.
+
+    cmp #<(patchh+3-1)
+    beq lab_a092_parse_exc  ;Branch to parse if return address is PATCHH+3
+
+    ;Return address is not PATCHH+3.
+
+    ;Check if we are fetching the first char after THEN.  If the return address
+    ;is OKGOTO, then IF did JSR SYNCHR to test for the THEN token.  SYNCHR found
+    ;THEN, so it just did JMP CHRGET (that's us) to get the char.
 
     cmp #<(okgoto-1)
     bne lab_a08c_ignore_exc ;Branch to ignore if return address is not OKGOTO
 
-    ;Return address is OKGOTO.  This means we were in the IF routine, which called
-    ;SYNCHR to test for the THEN token.  SYNCHR found THEN, so it called CHRGET
-    ;(that's us) to get the next char after it.  If the expression in the IF
-    ;statement evaluated to true, FACEXP has been set to non-zero.
+    ;Return address is OKGOTO.  If the expression in the IF evaluated to true,
+    ;FACEXP has been set to non-zero.
 
     lda facexp
     bne lab_a092_parse_exc  ;Branch to parse if the expression evaluated to true
 
-    ;The expression in the IF statement evaluated to false, so ignore this "!".
+    ;The expression in the IF statement evaluated to false,
+    ;so fall through to ignore this "!".
 
 ;Character is a "!" but we are not parsing it
 lab_a08c_ignore_exc:
@@ -382,17 +391,17 @@ lab_a0f5_not_quit:
 lab_a0fc_not_dos:
     ;None of the commands matched, so we assume that a device number
     ;follows the "!", such as in these examples:
-    ;  !9@                Change to device 9 and then read command channel
-    ;  !9LOAD"FILENAME"   Change to device 9 and then load program
+    ;  !9@                Read command channel on device 9
+    ;  !9LOAD"FILENAME"   Load program from device 9
 
     ;Decrement TXTPTR so GETBYTC can parse the number
     dec txtptr
     lda txtptr
     cmp #0xff
-    bne lab_a106_devnum
+    bne lab_a106_no_borrow
     dec txtptr+1
 
-lab_a106_devnum:
+lab_a106_no_borrow:
     ;Parse device number after the "!"
     jsr gtbytc+3          ;BASIC Evaluate integer 0-255, return it in X
     stx cur_iec_dev       ;Save as Current IEC device number for in-progress wedge command
