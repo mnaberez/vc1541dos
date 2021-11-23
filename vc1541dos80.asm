@@ -63,14 +63,14 @@
     snerr  = 0xbf00         ;BASIC ?SYNTAX ERROR
     patchh = 0xbf21         ;BASIC Get the first char of a new statement
     ptrget = 0xc12b         ;BASIC Find a variable; sets valtyp and varpnt
-    strmem = 0xc5b0         ;BASIC Set up string in memory
-    list = 0xc5b5           ;BASIC Perform LIST; full check of parameters, including "-"
+    strlit = 0xc5b0
+    strlt2 = 0xc5b6
     frestr = 0xc7b5         ;BASIC Discard temporary string
     gtbytc = 0xc8d1         ;BASIC Evaluate an expr for 1-byte param (0-255), return in X
-    wtxtptr = 0xc918        ;BASIC Copy FBUFPT (0x006E) to TXTPTR (0x0077)
+    st2txt  = 0xc918        ;BASIC Copy STRNG2 (0x006E) to TXTPTR (0x0077)
     fin = 0xce29            ;BASIC Convert an ASCII string into a numeral in FPAcc #1
     linprt = 0xcf83         ;BASIC Print 256*A + X in decimal
-    ntostr = 0xcf93         ;BASIC Convert number to string
+    ntostr = 0xcf93  ;XXX probably wrong
     pr2spc = 0xd52e         ;BASIC Print two spaces
     prtcr = 0xd534          ;BASIC Print carriage return
     wroa = 0xd717           ;MONITOR Print word at (ml1ptr) as 4 hex digits
@@ -610,9 +610,9 @@ lab_a19f_expr_loop:
     bit valtyp              ;Test type of value (0=numeric, 0xff=string)
     bmi lab_a1ac_str        ;Branch if value is a string
 
-    ;Value is not a string, so convert it
-    jsr ntostr              ;BASIC Convert number to string
-    jsr strmem              ;BASIC Set up string in memory
+    ;Value is not a string, so convert it (XXX wrong?)
+    jsr ntostr
+    jsr strlit
 
 ;Value is a string
 lab_a1ac_str:
@@ -829,8 +829,8 @@ lab_a2a6:
     iny
 
 lab_a2b1_nc:
-    jsr list+1              ;Call into BASIC Perform LIST mid-instruction
-    jsr wtxtptr             ;BASIC Copy FBUFPT (0x006E) to TXTPTR (0x0077)
+    jsr strlt2
+    jsr st2txt              ;BASIC Copy STRNG2 (0x006E) to TXTPTR (0x0077)
     jsr inpcom
     jmp lab_a2c5
 
@@ -1024,8 +1024,8 @@ sub_a390_setup:
     lda #0b00010111
     sta via_porta
 
-    lda #0x80
-    sta mem_00fd_r2d2
+    lda #0b10000000
+    sta mem_00fd_r2d2       ;Set the EOI flag
 
     ;Fall through
 
