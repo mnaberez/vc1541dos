@@ -1,8 +1,8 @@
 ;VC-1541-DOS/80
 ;Reverse-engineered source code
 
-    charac = 0x03           ;Search character
-    endchr = 0x04           ;Scan-between-quotes flag
+    charac = 0x03           ;Search Character for Scanning BASIC Text Input
+    endchr = 0x04           ;Search Character for Statement Termination or Quote
     valtyp = 0x07           ;Data type of value: 0=numeric, 0xff=string
     intflg = 0x08           ;Type of number: 0=floating point, 0x80=integer
     subflg = 0x0a           ;Subscript flag; FN flag
@@ -62,15 +62,15 @@
     synchr = 0xbef7         ;BASIC ?SYNTAX ERROR if CHRGET does not equal byte in A
     snerr  = 0xbf00         ;BASIC ?SYNTAX ERROR
     patchh = 0xbf21         ;BASIC Get the first char of a new statement
-    ptrget = 0xc12b         ;BASIC Find a variable; sets valtyp and varpnt
-    strlit = 0xc5b0
-    strlt2 = 0xc5b6
-    frestr = 0xc7b5         ;BASIC Discard temporary string
+    ptrget = 0xc12b         ;BASIC Find a variable or create if not found; sets valtyp and varpnt
+    strlit = 0xc5b0         ;BASIC Build descriptor for str literal termed by a quote at pointer AY
+    strlt2 = 0xc5b6         ;BASIC Build descriptor for str lit termed by CHARAC or ENDCHAR at AY
+    frestr = 0xc7b5         ;BASIC Discard temp string, returns A=length, XY=pointer to str
     gtbytc = 0xc8d1         ;BASIC Evaluate an expr for 1-byte param (0-255), return in X
     st2txt  = 0xc918        ;BASIC Copy STRNG2 (0x006E) to TXTPTR (0x0077)
-    fin = 0xce29            ;BASIC Convert an ASCII string into a numeral in FPAcc #1
+    fin = 0xce29            ;BASIC Convert an ASCII string to a floating point number in FAC1
     linprt = 0xcf83         ;BASIC Print 256*A + X in decimal
-    ntostr = 0xcf93  ;XXX probably wrong
+    fout = 0xcf93           ;BASIC Convert FAC1 to an ASCII string, returns AY=pointer to str
     pr2spc = 0xd52e         ;BASIC Print two spaces
     prtcr = 0xd534          ;BASIC Print carriage return
     wroa = 0xd717           ;MONITOR Print word at (ml1ptr) as 4 hex digits
@@ -237,7 +237,7 @@ lab_a067_nc:
     jsr chrgot              ;Subroutine: Get the Same Byte of BASIC Text again
                             ;(This is actually getting it for the first time, as
                             ; the original CHRGET routine falls into CHRGOT.)
-    php                     ;Save process status after CHRGOT
+    php                     ;Save processor status after CHRGOT
 
     cmp #'!                 ;Is it the wedge character?
     bne lab_a090_not_exc    ;Branch if not
@@ -610,13 +610,13 @@ lab_a19f_expr_loop:
     bit valtyp              ;Test type of value (0=numeric, 0xff=string)
     bmi lab_a1ac_str        ;Branch if value is a string
 
-    ;Value is not a string, so convert it (XXX wrong?)
-    jsr ntostr
-    jsr strlit
+    ;Value is numeric, so make a string from it
+    jsr fout                ;BASIC Convert FAC1 to an ASCII string, returns AY=pointer to str
+    jsr strlit              ;BASIC Build descriptor for str literal termed by a quote at pointer AY
 
 ;Value is a string
 lab_a1ac_str:
-    jsr frestr              ;BASIC Discard temporary string
+    jsr frestr              ;BASIC Discard temp string, returns A=length, XY=pointer to str
     sta fnlen               ;FNLEN = length of string
 
     ;Send the string to IEC
@@ -745,7 +745,7 @@ lab_a245_get_or_input:
 
 lab_a24b_input_loop:
     ;Set FORPNT to location of variable
-    jsr ptrget              ;BASIC Find a variable; sets valtyp and varpnt
+    jsr ptrget              ;BASIC Find a variable or create if not found; sets valtyp and varpnt
     sta forpnt              ;Pointer: Index Variable for FOR/NEXT
     sty forpnt+1
 
@@ -803,23 +803,23 @@ lab_a285:
     inx
     stx txtptr
     lda #0
-    sta charac
+    sta charac              ;Store as Search Character for Scanning BASIC Text Input
     beq lab_a2a5            ;Branch always
 
 ;Input flag is INPUT
 lab_a299_input:
-    sta charac
+    sta charac              ;Store as Search Character for Scanning BASIC Text Input
     cmp #'"
     beq lab_a2a6
     lda #':
-    sta charac
+    sta charac              ;Store as Search Character for Scanning BASIC Text Input
     lda #',
 
 lab_a2a5:
     clc
 
 lab_a2a6:
-    sta endchr              ;Scan-between-quotes flag
+    sta endchr              ;Store as Search Character for Statement Termination or Quote
 
     ;Increment TXTPTR
     lda txtptr
@@ -829,13 +829,13 @@ lab_a2a6:
     iny
 
 lab_a2b1_nc:
-    jsr strlt2
+    jsr strlt2              ;BASIC Build descriptor for str lit termed by CHARAC or ENDCHAR at AY
     jsr st2txt              ;BASIC Copy STRNG2 (0x006E) to TXTPTR (0x0077)
     jsr inpcom
     jmp lab_a2c5
 
 lab_a2bd_numeric:
-    jsr fin                 ;BASIC Convert an ASCII string into a numeral in FPAcc #1
+    jsr fin                 ;BASIC Convert an ASCII string to a floating point number in FAC1
     lda intflg              ;A = type of number (used by QINTGR)
     jsr qintgr              ;BASIC Store integer or floating point number in [FORPNT]
 
@@ -1491,7 +1491,7 @@ lab_a5b8_loop:
 
 lab_a5c2_not_u:
     jsr frmevl              ;BASIC Input and evaluate any expression
-    jsr frestr              ;BASIC Discard temporary string
+    jsr frestr              ;BASIC Discard temp string, returns A=length, XY=pointer to str
     sta fnlen
 
 ;Send DOS command in buffer [INDEX]
@@ -1900,7 +1900,7 @@ lab_a7b5_done:
 ;Evaluate expression as filename; set up FNLEN and FNADR
 sub_a7b6_eval_fname:
     jsr frmevl              ;BASIC Input and evaluate any expression
-    jsr frestr              ;BASIC Discard temporary string
+    jsr frestr              ;BASIC Discard temp string, returns A=length, XY=pointer to str
     sta fnlen
 
     lda index
@@ -2057,7 +2057,7 @@ sub_a85a_cmp_comma:
 ;Called only from !LOAD, !SAVE, or !VERIFY
 sub_a861_parse_addr:
     jsr frmevl              ;BASIC Input and evaluate any expression
-    jsr frestr              ;BASIC Discard temporary string
+    jsr frestr              ;BASIC Discard temp string, returns A=length, XY=pointer to str
     cmp #4                  ;Is it exactly 4 characters?
     bne lab_a88c_snerr      ;  No: jump to ?SYNTAX ERROR
     ldy #0xff               ;Y=FF so it rolls to 0 on first call
