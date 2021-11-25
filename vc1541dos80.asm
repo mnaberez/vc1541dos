@@ -1,5 +1,6 @@
 ;VC-1541-DOS/80
 ;Reverse-engineered source code
+;Assembles with AS6500 (part of Alan R. Baldwin's ASXXXX cross-assemblers package)
 
     charac = 0x03           ;Search Character for Scanning BASIC Text Input
     endchr = 0x04           ;Search Character for Statement Termination or Quote

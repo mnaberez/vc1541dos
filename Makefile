@@ -1,18 +1,15 @@
+# Requirements:
+#  - ASXXXX (https://shop-pdp.net/ashtml/asxxxx.php)
+#  - SRecord (http://srecord.sourceforge.net/)
+#  - OpenSSL (https://www.openssl.org/)
+
 START=0xa000
 NAME=vc1541dos80-$(START)
 
 all: clean $(NAME).bin diff
 
-# compare the assembled binary against the original binary
-# "UD11_1541_80_A000_2532.bin" dumped by Sven Petersen
-diff: $(NAME).bin
-ifeq ($(START),0xa000)
-	echo "2aa1a294acab0684457033e407e2adf1816c2d84" > original.sha1
-	openssl sha1 $(NAME).bin | cut -d ' ' -f 2 > $(NAME).sha1
-	diff original.sha1 $(NAME).sha1
-else
-	$(info Diff against original binary skipped.)
-endif
+clean:
+	rm -f *.bin *.hlr *.ihx *.lst *.rel *.rst *.sha1
 
 # show the assembler listing file
 list: $(NAME).bin
@@ -27,5 +24,13 @@ $(NAME).bin:
 	mv $(NAME).rst $(NAME).lst
 	srec_cat $(NAME).ihx -intel -offset -$(START) -fill 0xff 0 4096 -o $(NAME).bin -binary
 
-clean:
-	rm -f *.bin *.hlr *.ihx *.lst *.rel *.rst *.sha1
+# compare the assembled binary against the original binary
+# "UD11_1541_80_A000_2532.bin" dumped by Sven Petersen
+diff: $(NAME).bin
+ifeq ($(START),0xa000)
+	echo "2aa1a294acab0684457033e407e2adf1816c2d84" > original.sha1
+	openssl sha1 $(NAME).bin | cut -d ' ' -f 2 > $(NAME).sha1
+	diff original.sha1 $(NAME).sha1
+else
+	$(info Diff against original binary skipped.)
+endif
