@@ -2,25 +2,7 @@
 
 [Sven Petersen](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter) discovered an old EPROM marked `VC-1541-DOS/80` in the UD11 option ROM socket of a Commodore CBM 8032.  It turned out to be for a user port adapter that allows PET/CBM computers to use CBM IEC serial peripherals like the 1541 disk drive.  Sven did not have the hardware but he reverse engineered the requirements from the EPROM and designed his [own PCB](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter).  With the EPROM and Sven's PCB, you can use IEC peripherals with the PET.
 
-This is a disassembly of `VC-1541-DOS/80` in the form of commented, relocatable source code.
-
-## Assemble
-
-This source code is written for the `as6500` assembler, which is part of Alan Baldwin's [ASxxxx Cross-Assemblers](https://shop-pdp.net/ashtml/asxxxx.php) package.  The code can be assembled in one command using GNU Make:
-
-```text
-$ make
-```
-
-It will output a binary file that is bit-for-bit identical to the original `VC-1541-DOS/80` EPROM.  The original EPROM was a 2532 (4K) for the UD11 (`$A000`) socket.  A listing file will also be produced that shows the assembled bytes alongside the source lines.  See the `Makefile` for the individual commands.  
-
-A custom version for $9000 can also be built:
-
-```text
-$ make START=0x9000
-```
-
-It can be installed in the UD12 socket.  This is useful if you already have a different ROM in UD11, such as PaperClip or WordPro.
+This is a disassembly of the `VC-1541-DOS/80` EPROM.
 
 ## Requirements
 
@@ -87,17 +69,17 @@ Only the first two entry points are intended to be used from BASIC.  However, th
 
 The original author is unknown.  The EPROM contained the strings `vc-1541-dos/80` and `(C) g mutz (84)`.
 
-[Sven Petersen](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter) discovered the EPROM, disassembled large parts of it, determined the hardware requirements, and designed a circuit and PCB for it.  He was the first to get it working.  Sven published extensive documentation on his findings, along some unanswered questions about the commands.
+[Sven Petersen](https://github.com/svenpetersen1965/PET_CBM_1541_Adapter) discovered the EPROM, disassembled large parts of it, determined the hardware requirements, and designed a circuit and PCB for it.  He was the first to get it working and published extensive documentation.
 
 Martin Hoffman-Vetter is [credited](https://www.forum64.de/index.php?thread/106364-1541er-interface-f%C3%BCr-cbm8032-mystery-eprom/&postID=1742166#post1742166) by Sven for noticing that the IEC routines in the ROM are nearly identical to those in the C64 KERNAL, which greatly simplified disassembly.
 
-I created my own disassembly to investigate the unanswered questions and to have a relocatable source that could be changed or improved.  I started from the ROM binary using my [`m740dasm`](https://github.com/mnaberez/m740dasm) disassembler.  My primary reference materials were "Programming the PET/CBM" by Raeto West, "The Complete Commodore Inner Space Anthology" by Karl J.H. Hildon, the original C64 KERNAL source code from CBM, and some of my past PET/CBM disassemblies.
+I made this disassembly by running [`m740dasm`](https://github.com/mnaberez/m740dasm) on the original binary.  I then added symbols and comments.  
 
 ## License
 
 No rights are claimed on the original VC-1541-DOS code or C64 KERNAL code.  
 
-All other work is made available under the 3-Clause BSD License.
+All other work in this repository is made available under the 3-Clause BSD License.
 
 ## Author
 
