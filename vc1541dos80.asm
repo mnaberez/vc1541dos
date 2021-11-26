@@ -185,7 +185,7 @@
     jmp sub_a340_uni_lstksa     ;a02a   Send secondary address for TALK or LISTEN to IEC or IEEE
     jmp sub_a361_uni_atnon      ;a02d   Assert ATN on IEC or IEEE
     jmp sub_a36c_uni_scatn      ;a030   Release ATN on IEC or IEEE
-    jmp sub_a119_uni_jmp_lstksa ;a033   Redundant; Jumps to sub_a340_uni_lstksa
+    jmp sub_a119_jmp_uni_lstksa ;a033   Redundant; Jumps to sub_a340_uni_lstksa
 
 ;Install the CHRGET patch to jump to the wedge,
 ;then perform setup and print the banner.
@@ -442,7 +442,7 @@ lab_a112_wedge_verify:
     jmp lab_a6b7_load_or_verify
 
 ;Redundant; Jumps to Send secondary address for TALK or LISTEN to IEC or IEEE
-sub_a119_uni_jmp_lstksa:
+sub_a119_jmp_uni_lstksa:
     jmp sub_a340_uni_lstksa;Send secondary address for TALK or LISTEN to IEC or IEEE
 
 ;Wedge command !OPEN
@@ -557,18 +557,17 @@ lab_a16f_no_lf:
 
 ;Wedge command !PRINT#
 ;
-;Print to an already-open channel on the given secondary address on the
-;current IEC device.  If `!cmd#` was started, it is automatically ended
-;first.  If bit 7 of cur_iec_dev is set, CR will automatically be
-;translated to CRLF.
+;Print to the given secondary address on the current IEC device.  If `!cmd#` was
+;started, it is automatically ended first.  If bit 7 of cur_iec_dev is set, CR
+;will automatically be translated to CRLF.
 ;
 ;  !PRINT#2           Print a blank line to secondary address 2.
 ;
-;  !PRINT#2,"TEST"    Print an expression followed by a CRLF to secondary address 2.
+;  !PRINT#2,"TEST"    Print an expression followed by a CR to secondary address 2.
 ;                     Multiple expressions can be combined with ";" such as
 ;                     PRINT#2,"TEST";X;A$.  Unlike CBM BASIC, expressions cannot
 ;                     be combined with a comma.  If a trailing ";" is given, do
-;                     not send the CRLF at the end.
+;                     not send the CR at the end.
 ;
 ;Note: this cannot be the very first command if the wedge
 ;is not installed because it does not call sub_a390_setup.
@@ -662,7 +661,11 @@ lab_a1ce_send_crlf:
 lab_a1dd_done:
     jmp sub_a32a_uni_unlsn  ;Send UNLISTEN to IEC or IEEE
 
-;Wedge command !GET#
+;Wedge command !GET
+;
+;Read a byte from the given secondary address on the current IEC device.
+;
+;  !GET#2,A$          Read a byte from secondary address 2.
 ;
 ;Note: this cannot be the very first command if the wedge
 ;is not installed because it does not call sub_a390_setup.
@@ -681,8 +684,9 @@ lab_a1e0_wedge_get:
 
     ldx #<(inpbuf+1)        ;XY = pointer to inpbuf+1
     ldy #>(inpbuf+1)
-    lda #0                  ;A = NULL (0x00) character
+    lda #0                  ;A = NULL (0x00) character to terminate the string
     sta inpbuf+1            ;Store in INPUT buffer (0x200-0x250)
+
     lda #0x40               ;A=0x40 (Input flag: GET)
     jmp lab_a245_get_or_input
 
@@ -716,7 +720,12 @@ lab_a21c_cr:
     ldy #>(inpbuf-1)
     rts
 
-;Wedge command !INPUT
+;Wedge command !INPUT#
+;
+;Read CR-delimited data from the given secondary address on an IEC device
+;into one or more variables separated by commas.
+;
+;  !INPUT#15,A,B$,C,D   Read the command channel of a drive.
 ;
 ;Note: this cannot be the very first command if the wedge
 ;is not installed because it does not call sub_a390_setup.
@@ -902,6 +911,7 @@ lab_a31c_not_iec:
     jmp listn               ;KERNAL Send LISTEN to IEEE
 
 
+;Send TALK to IEC or IEEE
 sub_a31f_uni_talk:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a327_not_iec
@@ -1955,7 +1965,7 @@ lab_a7e1_fname:
                             ;  Next BASIC line address low, high
                             ;  Current BASIC line number low, high
 
-;Read up to BASIC line number (block size of program), then print it
+;Read and print BASIC line number (block size of program)
 lab_a7f4_line_loop:
     sty salptr              ;Store Y in byte countdown
 
@@ -2046,7 +2056,7 @@ lab_a84a_more:
     jsr sub_a4e4_untlk      ;Send UNTALK to IEC
     jmp sub_a65e_clsei      ;Send CLOSE, UNLISTEN to IEC
 
-;Compares byte at txtptr with a comma
+;Compare byte at txtptr with a comma
 sub_a85a_cmp_comma:
     ldy #0
     lda [txtptr],y

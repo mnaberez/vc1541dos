@@ -18,7 +18,7 @@ VC-1541-DOS provides a BASIC wedge.  Install it with `sys 40960` and it will sho
 vc-1541-dos/80
 ```
 
-All commands in the VC-1541-DOS wedge are prefixed with a `!`.  The standard CBM BASIC commands can still access IEEE-488 devices but only the `!` commands can access IEC devices.  Although most `!` commands share the same names as their CBM BASIC counterparts, they do not work exactly the same.  
+All commands in the VC-1541-DOS wedge are prefixed with a `!`.  The standard CBM BASIC commands can still access IEEE-488 devices but only the `!` commands can access IEC devices.  Although most `!` commands share the same names as their CBM BASIC counterparts, the usage of these commands is not exactly the same.
 
 | Command | Description |
 | ------- | ----------- |
@@ -36,10 +36,15 @@ All commands in the VC-1541-DOS wedge are prefixed with a `!`.  The standard CBM
 | `!verify"filename",027a` | Verify a program on an IEC device starting at the given address instead of the address in the file.  Only a start address may be given and it must be four hexadecimal digits. |
 | `!save"filename"` | Save a BASIC program to an IEC device. |
 | `!save"filename",027a,0300` |  Save memory from `$027A`-`$02FF` inclusive.  Both the start and the end addresses are required and must be four hexadecimal digits. |
-| `!open#2,"filename,s,r"` | Open a file with the given secondary address on an IEC device.  The comma and the quotes are required.  The filename can not be empty.  Note that secondary addresses 0 and 1 are special in CBM DOS and are used to load and save programs.  For general purpose file access, use a secondary address between 2 and 14. |
+| `!open#2,"filename,s,r"` | Open a file with the given secondary address on an IEC device.  The comma and the quotes are required.  The filename can not be empty.  Note that secondary addresses 0 (load), 1 (save), and 15 (command) are special in CBM DOS.  For general purpose file access, use a secondary address between 2 and 14. |
 | `!cmd#2` | Redirect output to the given secondary address on an IEC device. |
-| `!print#2` | Print a blank line to the given secondary address on an IEC device.  If `!cmd#` was started, it is automatically ended first. |
-| `!print#2,"test"` | Print an expression to the given secondary address on an IEC device.  Multiple expressions can be combined with a `;` such as in `print#2,"test";x;a$`.  Unlike CBM BASIC, expressions cannot be combined with a comma.  If a trailing `;` is given, do not send the CRLF at the end. |
+| `!print#2` | Print a CR to the given secondary address on an IEC device.  If `!cmd#` was started, it is automatically ended first. |
+| `!print#2,"test"` | Print an expression to the given secondary address on an IEC device.  Multiple expressions can be combined with a `;` such as in `print#2,"test";x;a$`.  Unlike CBM BASIC, expressions cannot be combined with a comma.  If a trailing `;` is given, do not send the CR at the end. |
+| `!get#2,a$` | Read a byte from the given secondary address on an IEC device into a variable. |
+| `!input#2,a$` | Read CR-delimited data from the given secondary address on an IEC device into one or more variables separated by commas.  The command channel of a drive can be read with `!input#15,a,b$,c,d`. |
+| `!close#2` | Close a file with the given secondary address on an IEC device. |
+
+Command shortcuts, whitespace, and quoting works like CBM BASIC, e.g. `!load "foo"` can be shortened to `!lO"foo`.  Variables and expressions can be used, e.g. `f$="name":!load $f` or `!print#2,chr$(x+1);`.  Most commands work from direct mode or from within a program, but some do not work in direct mode, like their CBM BASIC counterparts.  The variable `st` is updated after commands but `ds`and `ds$` are not supported.
 
 ### Device Number
 
@@ -73,14 +78,14 @@ The original author is unknown.  The EPROM contained the strings `vc-1541-dos/80
 
 Martin Hoffman-Vetter is [credited](https://www.forum64.de/index.php?thread/106364-1541er-interface-f%C3%BCr-cbm8032-mystery-eprom/&postID=1742166#post1742166) by Sven for noticing that the IEC routines in the ROM are nearly identical to those in the C64 KERNAL, which greatly simplified disassembly.
 
-I made this disassembly by running [`m740dasm`](https://github.com/mnaberez/m740dasm) on the original binary.  I then added symbols and comments.  
+To make this disassembly, I ran [`m740dasm`](https://github.com/mnaberez/m740dasm) on the original binary and then added symbols and comments.
 
 ## License
 
-No rights are claimed on the original VC-1541-DOS code or C64 KERNAL code.  
+No rights are claimed on the original VC-1541-DOS code or C64 KERNAL code.
 
-All other work in this repository is made available under the 3-Clause BSD License.
+All other work in this repository is made available under the [3-Clause BSD License](./LICENSE.txt).
 
-## Author
+## Contact
 
 [Mike Naberezny](https://github.com/mnaberez)
