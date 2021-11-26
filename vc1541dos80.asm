@@ -24,8 +24,8 @@
     txtptr = 0x77           ;Pointer: Current Byte of BASIC Text
     satus = 0x96            ;KERNAL Status byte for I/O operations
     verchk = 0x9d           ;KERNAL Flag for LOAD or VERIFY: 0=LOAD, 1=VERIFY
-    mem_00a0_c3p0 = 0xa0
-    bsour = 0xa5            ;IEEE byte buffer for output (FF means no character)
+    iec_c3p0 = 0xa0         ;VC-1541-DOS Buffered Character Flag
+    iec_bsour = 0xa5        ;VC-1541-DOS byte buffer for output (FF means no character)
     tapend = 0xab           ;Preserves X in CHRGET wedge ***
     ealptr = 0xb7           ;Pointer: end address for SAVE ***
     tapwct = 0xba           ;Tape write countdown ***
@@ -37,9 +37,9 @@
     fnadr = 0xda            ;Pointer: Start of filename
     prscr = 0xeb            ;Print to screen vector
     ml1ptr = 0xfb           ;Pointer: start of tape address for .S ***
-    mem_00fd_r2d2 = 0xfd
-    mem_00fe_bsour1 = 0xfe
-    mem_00ff_count = 0xff
+    iec_r2d2 = 0xfd         ;VC-1541-DOS EOI Flag
+    iec_bsour1 = 0xfe       ;VC-1541-DOS Receive Byte (bits shifted in)
+    iec_count = 0xff        ;VC-1541-DOS Count of bits to send or receive
     stkbot = 0x100          ;Lowest address of the stack page
     inpbuf = 0x200          ;Buffer used by INPUT, also MONITOR work area (0x200-0x250)
     dosbuf = 0x353          ;DOS command string buffer (0x353-0x380)
@@ -1036,7 +1036,7 @@ sub_a390_setup:
     sta via_porta
 
     lda #0b10000000
-    sta mem_00fd_r2d2       ;Set the EOI flag
+    sta iec_r2d2            ;Set the EOI flag
 
     ;Fall through
 
@@ -1128,19 +1128,19 @@ sub_a3f7_c64_list1:
                             ;OR the command with FA (device address)
     pha
 
-    bit mem_00a0_c3p0       ;Character left in buf?
+    bit iec_c3p0            ;Character left in buf?
     bpl lab_a408_list2      ;No...
 
     ;Send buffered character
     sec                     ;Set EOI flag
-    ror mem_00fd_r2d2
+    ror iec_r2d2
     jsr sub_a423_isour      ;Send last character
-    lsr mem_00a0_c3p0       ;Buffer clear flag
-    lsr mem_00fd_r2d2       ;Clear EOI flag
+    lsr iec_c3p0            ;Buffer clear flag
+    lsr iec_r2d2            ;Clear EOI flag
 
 lab_a408_list2:
     pla                     ;TALK/LISTEN address
-    sta bsour               ;IEEE byte buffer for output (FF means no character)
+    sta iec_bsour           ;VC-1541-DOS byte buffer for output (FF means no character)
     sei
     jsr sub_a3cb_datahi     ;Set data line high (inverted)
     cmp #iec_unlisten       ;CLKHI only on UNLISTEN
@@ -1162,7 +1162,7 @@ sub_a423_isour:
     jsr sub_a3dd_debpia     ;Data should be low / Debounce VIA PA then ASL A
     bcs lab_a490_notpres    ;Branch to device not present error
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
-    bit mem_00fd_r2d2       ;EOI flag test
+    bit iec_r2d2            ;EOI flag test
     bpl lab_a43d_noeoi
 
 ;Do the EOI
@@ -1181,7 +1181,7 @@ lab_a43d_noeoi:
 
     ;Set to send data
     lda #8                  ;Count 8 bits
-    sta mem_00ff_count
+    sta iec_count
 
 lab_a449_isr01:
     lda via_porta           ;Debounce the bus
@@ -1189,7 +1189,7 @@ lab_a449_isr01:
     bne lab_a449_isr01
     asl a                   ;Set the flags
     bcc lab_a493_frmerr     ;Data must be high
-    ror bsour               ;Next bit into carry
+    ror iec_bsour           ;Next bit into carry
     bcs lab_a45d_isrhi
     jsr sub_a3d4_datalo     ;Set data line low (inverted)
     bne lab_a460_isrclk
@@ -1207,7 +1207,7 @@ lab_a460_isrclk:
     and #~via_pa5_iec_data  ;Data high
     ora #via_pa4_iec_clk    ;Clock low
     sta via_porta
-    dec mem_00ff_count
+    dec iec_count
     bne lab_a449_isr01
     lda #0                  ;XXX does not match C64 KERNAL
     sta via_timer_2_lo
@@ -1241,7 +1241,7 @@ lab_a495_csberr:
 
 ;Send secondary address for LISTEN to IEC
 sub_a49c_secnd:
-    sta bsour               ;Buffer character
+    sta iec_bsour           ;Buffer character
     jsr sub_a419_isoura     ;Send it
 
 ;Release ATN after LISTEN
@@ -1270,7 +1270,7 @@ sub_a4b3_ieee_aton:
 
 ;Send secondary address for TALK to IEC
 sub_a4bc_tksa:
-    sta bsour               ;Buffer character
+    sta iec_bsour           ;Buffer character
     jsr sub_a419_isoura     ;Send secondary address
     sei                     ;No IRQ's here
     jsr sub_a3d4_datalo     ;Set data line low (inverted)
@@ -1286,11 +1286,11 @@ lab_a4cb_tkatn1:
 ;Send a byte to IEC
 ;Buffered output to IEC
 sub_a4d2_ciout:
-    bit mem_00a0_c3p0       ;Buffered char?
+    bit iec_c3p0            ;Buffered char?
     bmi lab_a4db_ci2        ;Yes...send last
 
     sec                     ;No...
-    ror mem_00a0_c3p0       ;Set buffered char flag
+    ror iec_c3p0            ;Set buffered char flag
     bne lab_a4e0_ci4        ;Branch always
 
 lab_a4db_ci2:
@@ -1299,7 +1299,7 @@ lab_a4db_ci2:
     pla                     ;Restore current char
 
 lab_a4e0_ci4:
-    sta bsour               ;Buffer current char
+    sta iec_bsour           ;Buffer current char
     clc                     ;Carry-Good exit
     rts
 
@@ -1332,7 +1332,7 @@ lab_a4f9_dlad00:
     jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
 
     lda #0                  ;XXX different from C64 KERNAL
-    sta mem_00a0_c3p0       ;XXX
+    sta iec_c3p0            ;XXX
 
     jmp sub_a3cb_datahi     ;Set data line high (inverted)
 
@@ -1350,7 +1350,7 @@ sub_a507_acptrs:
 sub_a50e_acptr:
     sei                     ;No IRQ allowed
     lda #0                  ;Set EOI/ERROR Flag
-    sta mem_00ff_count
+    sta iec_count
     jsr sub_a3c2_clkhi      ;Make sure clock line is released / Set clock line high (inverted)
 
 lab_a516_acp00a:
@@ -1375,7 +1375,7 @@ lab_a52b_acp00:
     bpl lab_a551_acp01      ;Yes...
 
 lab_a539_acp00b:
-    lda mem_00ff_count      ;Check for error (twice thru timeouts)
+    lda iec_count      ;Check for error (twice thru timeouts)
     beq lab_a542_acp00c
     lda #st_timeout         ;A = SATUS bit for timeout error
     jmp lab_a495_csberr     ;ST = 2 read timeout
@@ -1386,13 +1386,13 @@ lab_a542_acp00c:
     jsr sub_a3c2_clkhi      ;Delay and then set DATAHI (fix for 40us C64) / Set clock line high (inverted)
     lda #st_eof             ;A = SATUS bit for End of File (EOF)
     jsr sub_a580_udst       ;KERNAL SATUS = SATUS | A
-    inc mem_00ff_count      ;Go around again for error check on EOI
+    inc iec_count      ;Go around again for error check on EOI
     bne lab_a51b_eoiacp
 
 ;Do the byte transfer
 lab_a551_acp01:
     lda #8                  ;Set up counter
-    sta mem_00ff_count
+    sta iec_count
 
 lab_a555_acp03:
     lda via_porta           ;Wait for clock high
@@ -1400,7 +1400,7 @@ lab_a555_acp03:
     bne lab_a555_acp03
     asl a                   ;Shift data into carry
     bpl lab_a555_acp03      ;Clock still low...
-    ror mem_00fe_bsour1     ;Rotate data in
+    ror iec_bsour1          ;Rotate data in
 
 lab_a562_acp03a:
     lda via_porta           ;Wait for clock low
@@ -1408,7 +1408,7 @@ lab_a562_acp03a:
     bne lab_a562_acp03a
     asl a
     bmi lab_a562_acp03a
-    dec mem_00ff_count
+    dec iec_count
     bne lab_a555_acp03      ;More bits...
     ;...exit...
     jsr sub_a3d4_datalo     ;Set data line low (inverted)
@@ -1418,7 +1418,7 @@ lab_a562_acp03a:
     jsr sub_a4f6_dladlh     ;Delay approx 60 then set data high
 
 lab_a57b_acp04:
-    lda mem_00fe_bsour1
+    lda iec_bsour1
     cli                     ;IRQ is OK
     clc                     ;Good exit
     rts
