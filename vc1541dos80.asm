@@ -1028,18 +1028,42 @@ lab_a38c_not_iec:
 
 ;Set up VIA, set TAPWCT=",", R2D2=0x80, FA=IEC device, SATUS=0
 sub_a390_setup:
-    lda #0b00111111
+    lda #0b00111111         ;Set up VIA DDRA (User Port):
+                            ;PA7=Input:  IEC DATA in direct from IEC
+                            ;PA6=Input:  IEC CLK in direct from IEC
+                            ;PA5=Output: IEC DATA output to 7406
+                            ;PA4=Output: IEC CLK output to 7406
+                            ;PA3=Output: IEC ATN output to 7406
+                            ;PA2=Output: unused
+                            ;PA1=Output: unused
+                            ;PA0=Output: unused
     sta via_ddra
 
     lda #0
     sta via_timer_2_lo
     sta via_timer_2_hi
-    sta via_acr
+    sta via_acr             ;Set up VIA ACR:
+                            ;ACR7=0 Timer 1 PB7 Output = Disabled
+                            ;ACR6=0 Timer 1 = One-shot
+                            ;ACR5=0 Timer 2 = One-shot
+                            ;ACR4=0 \
+                            ;ACR3=0  Shift Register Disabled
+                            ;ACR2=0 /
+                            ;ACR1=0 Port B Latch = Disabled
+                            ;ACR0=0 Port A Latch = Disabled
 
     lda #',                 ;A = "," (Update BASIC pointers on !LOAD)
     sta tapwct              ;Store as TAPWCT (","=update BASIC pointers on !LOAD, ";"=do not)
 
-    lda #0b00010111
+    lda #0b00010111         ;Set up initial output states of VIA Port A (User Port):
+                            ;PA7=0: IEC DATA input; don't care
+                            ;PA6=0: IEC CLK input; don't care
+                            ;PA5=0: IEC DATA output to 7406; allows DATA to be pulled up to 5V
+                            ;PA4=1: IEC CLK output to 7406; holds CLK to GND
+                            ;PA3=0: IEC ATN output to 7406; allows ATN to be pulled up to 5V
+                            ;PA2=1: unused output = high
+                            ;PA1=1: unused output = high
+                            ;PA0=1: unused output = high
     sta via_porta
 
     lda #0b10000000
