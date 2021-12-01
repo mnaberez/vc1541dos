@@ -109,11 +109,18 @@
     via_acr = 0xe84b        ;VIA ACR
     via_ifr = 0xe84d        ;VIA IFR
 
-    ;I/O Pin Assignments
-    via_pb2_ieee_atn = 4    ;VIA PB2 IEEE-488 ATN
-    via_pa3_iec_atn = 8     ;VIA PA3 IEC ATN
-    via_pa4_iec_clk = 16    ;VIA PA4 IEC CLK
-    via_pa5_iec_data = 32   ;VIA PA5 IEC DATA
+    ;IEEE-488 I/O Pin Assignments
+    via_pb2_ieee_atn_out = 4  ;VIA PB2 IEEE-488 ATN output
+
+    ;IEC I/O Pin Assignments
+                              ;VIA PA7 IEC DATA in direct from IEC
+                              ;VIA PA6 IEC CLK in direct from IEC
+    via_pa5_iec_data_out = 32 ;VIA PA5 IEC DATA output to 7406
+    via_pa4_iec_clk_out = 16  ;VIA PA4 IEC CLK output to 7406
+    via_pa3_iec_atn_out = 8   ;VIA PA3 IEC ATN output to 7406
+                              ;VIA PA2 unused
+                              ;VIA PA1 unused
+                              ;VIA PA0 unused
 
     ;BASIC tokens
     tok_load = 0x93         ;LOAD
@@ -978,10 +985,10 @@ lab_a35d_not_iec:
 sub_a361_uni_atnon:
     jsr sub_a8a0_is_fa_iec  ;Is the KERNAL's current device number (FA) the current IEC device?
     bne lab_a369_not_iec
-    jmp sub_a4aa_atnon      ;Assert ATN (turns bit 3 of VIA PORT A on)
+    jmp sub_a4aa_atnon      ;Assert ATN (turns VIA PA3 on)
 
 lab_a369_not_iec:
-    jmp sub_a4b3_ieee_aton  ;Assert ATN on IEEE (turns bit 2 of VIA PORT B off)
+    jmp sub_a4b3_ieee_aton  ;Assert ATN on IEEE (turns VIA PB2 off)
 
 
 ;Release ATN on IEC or IEEE
@@ -1054,33 +1061,37 @@ sub_a3ad_set_fa_st:
 ;Start of code based on C64 KERNAL
 ;==================================================================================================
 
-;XXX order of clklo and clkhi subroutines is swapped in c64 kernal
+;XXX Order of clklo and clkhi subroutines is swapped in C64 KERNAL.
 
-;Set clock line low (inverted)
+;Set clock line low (holds IEC CLK to GND)
+;Write 1 to VIA port bit, so 7406 output is GND
 sub_a3b9_clklo:
     lda via_porta
-    ora #via_pa4_iec_clk
+    ora #via_pa4_iec_clk_out
     sta via_porta
     rts
 
-;Set clock line high (inverted)
+;Set clock line high (allows IEC CLK to be pulled to 5V)
+;Write 0 to VIA port bit, so 7406 output is Hi-Z
 sub_a3c2_clkhi:
     lda via_porta
-    and #~via_pa4_iec_clk
+    and #~via_pa4_iec_clk_out
     sta via_porta
     rts
 
-;Set data line high (inverted)
+;Set data line high (allows IEC DATA to be pulled up to 5V)
+;Write 0 to VIA port bit, so 7406 output is Hi-Z
 sub_a3cb_datahi:
     lda via_porta
-    and #~via_pa5_iec_data
+    and #~via_pa5_iec_data_out
     sta via_porta
     rts
 
-;Set data line low (inverted)
+;Set data line low (holds IEC DATA to GND)
+;Write 1 to VIA port bit, so 7406 output is GND
 sub_a3d4_datalo:
     lda via_porta
-    ora #via_pa5_iec_data
+    ora #via_pa5_iec_data_out
     sta via_porta
     rts
 
@@ -1142,26 +1153,26 @@ lab_a408_list2:
     pla                     ;TALK/LISTEN address
     sta iec_bsour           ;VC-1541-DOS byte buffer for output (FF means no character)
     sei
-    jsr sub_a3cb_datahi     ;Set data line high (inverted)
+    jsr sub_a3cb_datahi     ;Set data line high
     cmp #iec_unlisten       ;CLKHI only on UNLISTEN
     bne lab_a416_list5
-    jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
+    jsr sub_a3c2_clkhi      ;Set clock line high
 
 lab_a416_list5:
-    jsr sub_a4aa_atnon      ;Assert ATN (turns bit 3 of VIA PORT A on)
+    jsr sub_a4aa_atnon      ;Assert ATN (turns VIA PA3 on)
                             ;XXX different from C64 but does the same thing
 sub_a419_isoura:
     sei
-    jsr sub_a3b9_clklo      ;Set clock line low (inverted)
-    jsr sub_a3cb_datahi     ;Set data line high (inverted)
+    jsr sub_a3b9_clklo      ;Set clock line low
+    jsr sub_a3cb_datahi     ;Set data line high
     jsr sub_a3e7_w1ms       ;Delay 1 ms
 
 sub_a423_isour:
     sei
-    jsr sub_a3cb_datahi     ;Make sure data is released / Set data line high (inverted)
+    jsr sub_a3cb_datahi     ;Make sure data is released / Set data line high
     jsr sub_a3dd_debpia     ;Data should be low / Debounce VIA PA then ASL A
     bcs lab_a490_notpres    ;Branch to device not present error
-    jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
+    jsr sub_a3c2_clkhi      ;Set clock line high
     bit iec_r2d2            ;EOI flag test
     bpl lab_a43d_noeoi
 
@@ -1177,7 +1188,7 @@ lab_a438_isr03:
 lab_a43d_noeoi:
     jsr sub_a3dd_debpia     ;Wait for DATA high / Debounce VIA PA then ASL A
     bcc lab_a43d_noeoi
-    jsr sub_a3b9_clklo      ;Set clock line low (inverted)
+    jsr sub_a3b9_clklo      ;Set clock line low
 
     ;Set to send data
     lda #8                  ;Count 8 bits
@@ -1191,21 +1202,21 @@ lab_a449_isr01:
     bcc lab_a493_frmerr     ;Data must be high
     ror iec_bsour           ;Next bit into carry
     bcs lab_a45d_isrhi
-    jsr sub_a3d4_datalo     ;Set data line low (inverted)
+    jsr sub_a3d4_datalo     ;Set data line low
     bne lab_a460_isrclk
 
 lab_a45d_isrhi:
-    jsr sub_a3cb_datahi     ;Set data line high (inverted)
+    jsr sub_a3cb_datahi     ;Set data line high
 
 lab_a460_isrclk:
-    jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
+    jsr sub_a3c2_clkhi      ;Set clock line high
     nop
     nop
     nop
     nop
     lda via_porta
-    and #~via_pa5_iec_data  ;Data high
-    ora #via_pa4_iec_clk    ;Clock low
+    and #~via_pa5_iec_data_out  ;Data high
+    ora #via_pa4_iec_clk_out    ;Clock low
     sta via_porta
     dec iec_count
     bne lab_a449_isr01
@@ -1247,24 +1258,24 @@ sub_a49c_secnd:
 ;Release ATN after LISTEN
 sub_a4a1_scatn:
     lda via_porta
-    and #~via_pa3_iec_atn
+    and #~via_pa3_iec_atn_out
     sta via_porta          ;Release ATN
     rts
 
 ;Assert ATN
 ;XXX this routine does not exist in the C64 KERNAL
-;Turn bit 3 of VIA PORT A on (ATN out)
+;Turn VIA PA3 on (ATN out)
 sub_a4aa_atnon:
     lda via_porta
-    ora #via_pa3_iec_atn
+    ora #via_pa3_iec_atn_out
     sta via_porta
     rts
 
-;Assert ATN on IEEE (turns bit 2 of VIA PORT B off)
+;Assert ATN on IEEE (turns VIA PB2 off)
 ;XXX obviously being IEEE this routine does not exist in C64 KERNAL
 sub_a4b3_ieee_aton:
     lda via_portb
-    and #~via_pb2_ieee_atn
+    and #~via_pb2_ieee_atn_out
     sta via_portb
     rts
 
@@ -1273,9 +1284,9 @@ sub_a4bc_tksa:
     sta iec_bsour           ;Buffer character
     jsr sub_a419_isoura     ;Send secondary address
     sei                     ;No IRQ's here
-    jsr sub_a3d4_datalo     ;Set data line low (inverted)
+    jsr sub_a3d4_datalo     ;Set data line low
     jsr sub_a4a1_scatn      ;Release ATN
-    jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
+    jsr sub_a3c2_clkhi      ;Set clock line high
 
 lab_a4cb_tkatn1:
     jsr sub_a3dd_debpia     ;Wait for clock to go low / Debounce VIA PA then ASL A
@@ -1306,8 +1317,8 @@ lab_a4e0_ci4:
 ;Send UNTALK to IEC
 sub_a4e4_untlk:
     sei
-    jsr sub_a3b9_clklo      ;Set clock line low (inverted)
-    jsr sub_a4aa_atnon      ;Assert ATN (turns bit 3 of VIA PORT A on)
+    jsr sub_a3b9_clklo      ;Set clock line low
+    jsr sub_a4aa_atnon      ;Assert ATN (turns VIA PA3 on)
     lda #iec_untalk         ;A = 0x5F (UNTALK)
     .byte opc_bit           ;Skip next 2 bytes
 
@@ -1329,12 +1340,12 @@ lab_a4f9_dlad00:
     dex
     bne lab_a4f9_dlad00
     tax
-    jsr sub_a3c2_clkhi      ;Set clock line high (inverted)
+    jsr sub_a3c2_clkhi      ;Set clock line high
 
     lda #0                  ;XXX different from C64 KERNAL
     sta iec_c3p0            ;XXX
 
-    jmp sub_a3cb_datahi     ;Set data line high (inverted)
+    jmp sub_a3cb_datahi     ;Set data line high
 
 ;If SATUS=0 then read a byte from IEC, else return a CR (0x0D).
 ;XXX This is unique to VC-1541-DOS and is not from the C64 KERNAL.
@@ -1351,7 +1362,7 @@ sub_a50e_acptr:
     sei                     ;No IRQ allowed
     lda #0                  ;Set EOI/ERROR Flag
     sta iec_count
-    jsr sub_a3c2_clkhi      ;Make sure clock line is released / Set clock line high (inverted)
+    jsr sub_a3c2_clkhi      ;Make sure clock line is released / Set clock line high
 
 lab_a516_acp00a:
     jsr sub_a3dd_debpia     ;Wait for clock high / Debounce VIA PA then ASL A
@@ -1363,7 +1374,7 @@ lab_a51b_eoiacp:
     lda #1                  ;XXX registers in C64 KERNAL, but values are the same
     sta via_timer_2_hi      ;XXX
 
-    jsr sub_a3cb_datahi     ;Data line high (Makes timing more like VIC-20) / Set data line high (inverted)
+    jsr sub_a3cb_datahi     ;Data line high (Makes timing more like VIC-20) / Set data line high
     lda via_ifr             ;Clear the timer flags
 
 lab_a52b_acp00:
@@ -1382,8 +1393,8 @@ lab_a539_acp00b:
 
 ;Timer ran out, do an EOI thing
 lab_a542_acp00c:
-    jsr sub_a3d4_datalo     ;Set data line low (inverted)
-    jsr sub_a3c2_clkhi      ;Delay and then set DATAHI (fix for 40us C64) / Set clock line high (inverted)
+    jsr sub_a3d4_datalo     ;Set data line low
+    jsr sub_a3c2_clkhi      ;Delay and then set DATAHI (fix for 40us C64) / Set clock line high
     lda #st_eof             ;A = SATUS bit for End of File (EOF)
     jsr sub_a580_udst       ;KERNAL SATUS = SATUS | A
     inc iec_count      ;Go around again for error check on EOI
@@ -1411,7 +1422,7 @@ lab_a562_acp03a:
     dec iec_count
     bne lab_a555_acp03      ;More bits...
     ;...exit...
-    jsr sub_a3d4_datalo     ;Set data line low (inverted)
+    jsr sub_a3d4_datalo     ;Set data line low
     bit satus               ;Check for EOI
     bvc lab_a57b_acp04      ;None...
 
