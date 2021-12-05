@@ -35,7 +35,7 @@
     fa = 0xd4               ;Current device number
     datax = 0xd9            ;Current Character to Print
     fnadr = 0xda            ;Pointer: Start of filename
-    prscr = 0xeb            ;Print to screen vector
+    prscr = 0xeb            ;Print to screen vector (80-column ROMs only)
     ml1ptr = 0xfb           ;Pointer: start of tape address for .S ***
     iec_r2d2 = 0xfd         ;VC-1541-DOS EOI Flag
     iec_bsour1 = 0xfe       ;VC-1541-DOS Receive Byte (bits shifted in)
@@ -76,7 +76,7 @@
     prtcr = 0xd534          ;BASIC Print carriage return
     wroa = 0xd717           ;MONITOR Print word at (ml1ptr) as 4 hex digits
     hexit = 0xd78d          ;MONITOR Evaluate char in A to a hex nibble
-    dprscr = 0xe787         ;EDITOR Default routine for PRSCR vector
+    dprscr = 0xe787         ;UNKNOWN EDITOR Default routine for PRSCR vector (normally 0xe02c)
     talk = 0xf0d2           ;KERNAL Send TALK to IEEE
     listn = 0xf0d5          ;KERNAL Send LISTEN to IEEE
     list1 = 0xf0d7          ;KERNAL Send a command byte to IEEE
