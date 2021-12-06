@@ -10,7 +10,7 @@ This is a disassembly of the `VC-1541-DOS/80` EPROM.
 
 - An 80-column PET.  The code uses location `$87D0`, which is in the 80-column screen RAM but not part of the visible screen.  This location is required for the wedge commands `!print#`, `!get#`, `!input#`, and `!cmd#`.  These will not work correctly on a 40-column machine.  However, the other commands will work.
 
-- An unknown Editor ROM.  For the `!cmd#` command only, the code expects the Editor ROM routine normally installed in the `PRSCR` vector to be at `$E787`.  However, in the standard Editor ROMs for North America and Germany (DIN), this routine is at `$E02C`.  The `!cmd#` code also expects the `PRSCR` vector to be at `$EB`, which is only true on 80-column PETs.
+- An unknown Editor ROM.  For the `!cmd#` command only, the code expects `$E787` to be the default address stored by the Editor ROM in the `VOUT` vector.  However, in the standard Editor ROMs for North America and Germany (DIN), `VOUT` points to `PRT55` (`$E02C`).  The `!cmd#` code also expects the `VOUT` vector to be at `$EB`, which is only true on 80-column PETs.
 
 ## Usage
 

@@ -35,7 +35,7 @@
     fa = 0xd4               ;Current device number
     datax = 0xd9            ;Current Character to Print
     fnadr = 0xda            ;Pointer: Start of filename
-    prscr = 0xeb            ;Print to screen vector (80-column ROMs only)
+    vout = 0xeb             ;Output vector (used by Editor; 80-column ROMs only)
     ml1ptr = 0xfb           ;Pointer: start of tape address for .S ***
     iec_r2d2 = 0xfd         ;VC-1541-DOS EOI Flag
     iec_bsour1 = 0xfe       ;VC-1541-DOS Receive Byte (bits shifted in)
@@ -76,7 +76,7 @@
     prtcr = 0xd534          ;BASIC Print carriage return
     wroa = 0xd717           ;MONITOR Print word at (ml1ptr) as 4 hex digits
     hexit = 0xd78d          ;MONITOR Evaluate char in A to a hex nibble
-    dprscr = 0xe787         ;UNKNOWN EDITOR Default routine for PRSCR vector (normally 0xe02c)
+    prt55 = 0xe787          ;UNKNOWN EDITOR Default routine for VOUT vector (normally 0xe02c)
     talk = 0xf0d2           ;KERNAL Send TALK to IEEE
     listn = 0xf0d5          ;KERNAL Send LISTEN to IEEE
     list1 = 0xf0d7          ;KERNAL Send a command byte to IEEE
@@ -534,17 +534,17 @@ lab_a149_not_iec:
 ;
 lab_a14c_wedge_cmd:
     jsr sub_a8a8_parse_sa_1 ;Parse #integer or ?SYNTAX ERROR, set FA=IEC, SA=integer|SECOND, SATUS=0
-    lda #<lab_a15f_prscr
-    sta prscr
-    lda #>lab_a15f_prscr
-    sta prscr+1
+    lda #<lab_a15f_vout
+    sta vout
+    lda #>lab_a15f_vout
+    sta vout+1
     jsr sub_a314_uni_listn  ;Send LISTEN to IEC or IEEE
     lda sa                  ;A = KERNAL current secondary address
     jmp sub_a340_uni_lstksa ;Send secondary address for TALK or LISTEN to IEC or IEEE
 
 
-;Routine installed in prscr vector
-lab_a15f_prscr:
+;Routine installed in VOUT vector
+lab_a15f_vout:
     lda datax               ;A = Current character to print
     cmp #cr                 ;Is it a carriage return?
     bne lab_a16f_no_lf
@@ -559,7 +559,7 @@ lab_a15f_prscr:
 
 lab_a16f_no_lf:
     jsr sub_a306_uni_ciout  ;Send a byte to IEC or IEEE
-    jmp dprscr              ;EDITOR Default routine for PRSCR vector
+    jmp prt55               ;EDITOR Default routine for VOUT vector
 
 
 ;Wedge command !PRINT#
@@ -580,21 +580,21 @@ lab_a16f_no_lf:
 ;is not installed because it does not call sub_a390_setup.
 ;
 lab_a175_wedge_printn:
-    ;Are we in !CMD# mode?  If so, the PRSCR vector points to our routine.
-    lda prscr
-    cmp #<lab_a15f_prscr
+    ;Are we in !CMD# mode?  If so, the VOUT vector points to our routine.
+    lda vout
+    cmp #<lab_a15f_vout
     bne lab_a18c_not_in_cmd
-    lda prscr+1
-    cmp #>lab_a15f_prscr
+    lda vout+1
+    cmp #>lab_a15f_vout
     bne lab_a18c_not_in_cmd
 
     ;We're in !CMD# mode.  Before we !PRINT#, restore the default
-    ;PRSCR routine and UNLISTEN to get out of CMD# mode.
+    ;vout  routine and UNLISTEN to get out of CMD# mode.
 
-    lda #<dprscr            ;EDITOR Default routine for PRSCR vector
-    sta prscr
-    lda #>dprscr            ;EDITOR Default routine for PRSCR vector
-    sta prscr+1
+    lda #<prt55             ;EDITOR Default routine for VOUT vector
+    sta vout
+    lda #>prt55             ;EDITOR Default routine for VOUT vector
+    sta vout+1
 
     jsr sub_a32a_uni_unlsn  ;Send UNLISTEN to IEC or IEEE
     ;Fall through
