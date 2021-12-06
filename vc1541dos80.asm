@@ -35,7 +35,7 @@
     fa = 0xd4               ;Current device number
     datax = 0xd9            ;Current Character to Print
     fnadr = 0xda            ;Pointer: Start of filename
-    vout = 0xeb             ;Output vector (used by Editor; 80-column ROMs only)
+    vout = 0xeb             ;Output vector (80-col Editor ROM only; no equivalent on 40-col)
     ml1ptr = 0xfb           ;Pointer: start of tape address for .S ***
     iec_r2d2 = 0xfd         ;VC-1541-DOS EOI Flag
     iec_bsour1 = 0xfe       ;VC-1541-DOS Receive Byte (bits shifted in)
@@ -589,7 +589,7 @@ lab_a175_wedge_printn:
     bne lab_a18c_not_in_cmd
 
     ;We're in !CMD# mode.  Before we !PRINT#, restore the default
-    ;vout  routine and UNLISTEN to get out of CMD# mode.
+    ;VOUT routine and UNLISTEN to get out of CMD# mode.
 
     lda #<prt55             ;EDITOR Default routine for VOUT vector
     sta vout

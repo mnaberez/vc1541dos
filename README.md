@@ -8,9 +8,11 @@ This is a disassembly of the `VC-1541-DOS/80` EPROM.
 
 - BASIC 4.0.  The code makes many calls that are specific to the BASIC 4.0 ROMs.
 
-- An 80-column PET.  The code uses location `$87D0`, which is in the 80-column screen RAM but not part of the visible screen.  This location is required for the wedge commands `!print#`, `!get#`, `!input#`, and `!cmd#`.  These will not work correctly on a 40-column machine.  However, the other commands will work.
+- 80-column Screen RAM.  For the wedge commands `!print#`, `!get#`, `!input#`, and `!cmd#`, the code uses `$87D0`, which is a non-visible location in the 80-column RAM.  These commands will not work on a 40-column machine, although all others will.  To adapt the code for 40-column PETs, `$87D0` could be replaced with `$83E8`.
 
-- An unknown Editor ROM.  For the `!cmd#` command only, the code expects `$E787` to be the default address stored by the Editor ROM in the `VOUT` vector.  However, in the standard Editor ROMs for North America and Germany (DIN), `VOUT` points to `PRT55` (`$E02C`).  The `!cmd#` code also expects the `VOUT` vector to be at `$EB`, which is only true on 80-column PETs.
+- An 80-column Editor ROM.  For the `!cmd#` command only, the code changes the `VOUT` vector to redirect output through its own routine.  The `VOUT` vector is [a feature](https://github.com/sjgray/cbm-edit-rom/blob/0cfc920f6a031ac71b7168bd8705d8ed6231346a/disassemblies/CBM8000-EDIT-ROM-disassembly-sjg.txt#L364-L390) of the 80-column Editor ROMs only.  It is present in the 80-column North American and German (DIN) Editor versions but is [not present](https://github.com/sjgray/cbm-edit-rom/blob/0cfc920f6a031ac71b7168bd8705d8ed6231346a/disassemblies/edit-4-40-n-60Hz-901499-01-disassembly-sjg.txt#L465-L485) in any 40-column version.
+
+- An unknown 80-column Editor ROM.  Again for the `!cmd#` command only, the code expects `$E787` to be the default address that the Editor ROM stores in `VOUT`.  However, in the standard Editor ROMs for North America and Germany (DIN), there is nothing at `$E787`, meaning VC-1541-DOS was written for use with an unknown Editor ROM.  To adapt the code to the standard 80-column editor ROMs, replace `$E787` with `$E20C`.
 
 ## Usage
 
