@@ -16,7 +16,7 @@ $(NAME).bin: vc1541dos80.asm
 	cp -f vc1541dos80.asm $(NAME).asm
 	as6500 -l -p -w -o $(NAME).asm
 	rm -f $(NAME).asm
-	aslink $(NAME) -b vc1541dos=$(START) -i -u
+	aslink -b vc1541dos=$(START) -i -u $(NAME)
 	mv $(NAME).rst $(NAME).lst
 	srec_cat $(NAME).ihx -intel -offset -$(START) -fill 0xff 0 4096 -o $(NAME).bin -binary
 
