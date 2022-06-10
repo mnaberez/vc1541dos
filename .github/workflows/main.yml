@@ -24,3 +24,11 @@ jobs:
 
     - name: Assemble a custom binary for 0x9000
       run: make START=0x9000 list
+
+    - name: 'Upload build artifacts'
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-artifacts
+        path: |
+            *.bin
+            *.lst
