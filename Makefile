@@ -16,9 +16,9 @@ $(NAME).bin: vc1541dos80.asm
 	cp -f vc1541dos80.asm $(NAME).asm
 	as6500 -l -p -w -o $(NAME).asm
 	rm -f $(NAME).asm
-	aslink -b vc1541dos=$(START) -i -u $(NAME)
+	aslink -a vc1541dos=$(START) -i -u $(NAME)
 	mv $(NAME).rst $(NAME).lst
-	srec_cat $(NAME).ihx -intel -offset -$(START) -fill 0xff 0 4096 -o $(NAME).bin -binary
+	srec_cat $(NAME).hex -intel -offset -$(START) -fill 0xff 0 4096 -o $(NAME).bin -binary
 
 # show the assembler listing file
 list: $(NAME).bin
@@ -33,4 +33,4 @@ diff: $(NAME).bin
 
 # remove all build artifacts
 clean:
-	rm -f *.bin *.hlr *.ihx *.lst *.rel *.rst *.sha1
+	rm -f *.bin *.hlr *.hex *.lst *.rel *.rst *.sha1
